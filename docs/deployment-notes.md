@@ -1,0 +1,203 @@
+# Deployment Notes – Foundation (Phase 1)
+
+Ordered procedure to bring up the CML topology, assign images, apply router configs, set Linux IPs, and verify connectivity. No Kubernetes, K3s, Cilium, or application workloads in this phase.
+
+---
+
+## 1. Import or create the CML topology
+
+- **If your CML supports YAML import:** Use **lab/topology.yaml**. Import via Lab Manager (Import Lab) and select the YAML file. Adjust node definitions if your server uses different IDs (e.g. `iosv-l2` instead of `iosv`, or a specific Ubuntu image ID).
+- **If you build by hand:** Create a new lab and add 11 nodes with the names and roles below. Add links as in **docs/interface-mapping.md** and **lab/topology.yaml**. Topology: External → WAN Router → (Site A Router | Shared Svcs/jump-1 | Site B Router).
+
+**Node list:**
+
+| Node       | Type (CML nodedefinition) | RAM  | vCPU | Interfaces |
+|------------|---------------------------|------|------|------------|
+| wan-rtr    | iosv                      | 2048 | 1    | 4          |
+| site-a-rtr | iosv                      | 2048 | 1    | 4          |
+| site-b-rtr | iosv                      | 2048 | 1    | 4          |
+| external   | external_connector        | —    | —    | 1          |
+| jump-1     | ubuntu (or your Linux)    | 2048 | 1    | 1          |
+| k8s-a-cp   | ubuntu                    | 4096 | 2    | 1          |
+| k8s-a-w1   | ubuntu                    | 2048 | 2    | 1          |
+| k8s-a-w2   | ubuntu                    | 2048 | 2    | 1          |
+| k8s-b-cp   | ubuntu                    | 4096 | 2    | 1          |
+| k8s-b-w1   | ubuntu                    | 2048 | 2    | 1          |
+| k8s-b-w2   | ubuntu                    | 2048 | 2    | 1          |
+
+**Links:**
+
+- wan-rtr Gi0/3 ↔ external (External Connector; 192.0.2.0/24 – Internet/egress; configure connector as NAT or System Bridge on CML server)  
+- wan-rtr Gi0/0 ↔ jump-1 eth0  
+- wan-rtr Gi0/1 ↔ site-a-rtr Gi0/0  
+- wan-rtr Gi0/2 ↔ site-b-rtr Gi0/0  
+- site-a-rtr Gi0/1 ↔ k8s-a-cp eth0  
+- site-a-rtr Gi0/2 ↔ k8s-a-w1 eth0  
+- site-a-rtr Gi0/3 ↔ k8s-a-w2 eth0  
+- site-b-rtr Gi0/1 ↔ k8s-b-cp eth0  
+- site-b-rtr Gi0/2 ↔ k8s-b-w1 eth0  
+- site-b-rtr Gi0/3 ↔ k8s-b-w2 eth0  
+
+CML interface numbering is 0-based (first interface = slot 0). IOSv maps to GigabitEthernet0/0, 0/1, …
+
+---
+
+## 2. Assign images
+
+- **Routers:** Attach your licensed **Cisco IOSv** image to wan-rtr, site-a-rtr, site-b-rtr (via node configuration → Image).
+- **Linux nodes:** Attach your preferred **Ubuntu** (or other) server image to jump-1 and all six k8s-* nodes. Ensure the image has SSH and standard networking (e.g. cloud-init or manual config).
+- **External Connector:** No image. In the node’s configuration, set the connector to **NAT** (default) or **System Bridge** as needed. Ensure the CML server bridge used for this connector has (or can reach) a gateway at 192.0.2.2 for the WAN router’s default route, or adjust the WAN router config to match your external segment (e.g. NAT uses 192.168.255.0/24 by default; see [External Connectors](https://developer.cisco.com/docs/modeling-labs/2-6/cml-admin-tools-external-connectors/)).
+
+---
+
+## 3. Boot order
+
+1. Start **wan-rtr**, **site-a-rtr**, **site-b-rtr**. Wait until they finish booting (console or CML “booted” state).
+2. Start the **external** External Connector (if it does not start with the link), then **jump-1**, **k8s-a-cp**, **k8s-a-w1**, **k8s-a-w2**, **k8s-b-cp**, **k8s-b-w1**, **k8s-b-w2**.
+3. Wait until all nodes show “booted” or reachable.
+
+---
+
+## 4. Apply router configs
+
+- Open console (or SSH after enabling SSH and credentials) for each router.
+- Paste the contents of **configs/wan-rtr.config**, **configs/site-a-rtr.config**, **configs/site-b-rtr.config** into the respective router (enable/configure terminal, then paste; save with `write memory` or `copy run start`). Add a local user for SSH (e.g. `username admin privilege 15 secret <yourpassword>`) before the `login local` line, or remove `login local` if using passwordless console access.
+- Or use CML configuration injection (if available) to push the same configs at boot.
+
+**Verification:** On each router run `show ip interface brief` and `show ip bgp summary` after config apply. All used interfaces should be up; BGP neighbors should reach Established (may take a few seconds).
+
+---
+
+## 5. Configure Linux host IP addresses
+
+Each Linux node gets a single interface (eth0) with the IP and default gateway from **docs/interface-mapping.md**. Use one of the methods below.
+
+**Option A – Netplan (Ubuntu 18.04+):** Create/edit `/etc/netplan/01-netcfg.yaml` (or similar) and apply with `sudo netplan apply`.
+
+**jump-1:**
+```yaml
+network:
+  version: 2
+  ethernets:
+    eth0:
+      addresses: [10.30.0.10/24]
+      routes:
+        - to: default
+          via: 10.30.0.1
+```
+
+**k8s-a-cp:**
+```yaml
+network:
+  version: 2
+  ethernets:
+    eth0:
+      addresses: [10.10.0.2/30]
+      routes:
+        - to: default
+          via: 10.10.0.1
+```
+
+**k8s-a-w1:**
+```yaml
+network:
+  version: 2
+  ethernets:
+    eth0:
+      addresses: [10.10.0.6/30]
+      routes:
+        - to: default
+          via: 10.10.0.5
+```
+
+**k8s-a-w2:**
+```yaml
+network:
+  version: 2
+  ethernets:
+    eth0:
+      addresses: [10.10.0.10/30]
+      routes:
+        - to: default
+          via: 10.10.0.9
+```
+
+**k8s-b-cp:**
+```yaml
+network:
+  version: 2
+  ethernets:
+    eth0:
+      addresses: [10.20.0.2/30]
+      routes:
+        - to: default
+          via: 10.20.0.1
+```
+
+**k8s-b-w1:**
+```yaml
+network:
+  version: 2
+  ethernets:
+    eth0:
+      addresses: [10.20.0.6/30]
+      routes:
+        - to: default
+          via: 10.20.0.5
+```
+
+**k8s-b-w2:**
+```yaml
+network:
+  version: 2
+  ethernets:
+    eth0:
+      addresses: [10.20.0.10/30]
+      routes:
+        - to: default
+          via: 10.20.0.9
+```
+
+**Option B – ip + route commands (temporary):**
+```bash
+# jump-1
+sudo ip addr add 10.30.0.10/24 dev eth0
+sudo ip link set eth0 up
+sudo ip route add default via 10.30.0.1
+
+# k8s-a-cp
+sudo ip addr add 10.10.0.2/30 dev eth0
+sudo ip link set eth0 up
+sudo ip route add default via 10.10.0.1
+# ... (repeat for each host using addresses from interface-mapping.md)
+```
+
+---
+
+## 6. Basic connectivity testing
+
+Follow **docs/validation-plan.md** in order:
+
+1. Router `show ip interface brief` and direct pings.  
+2. BGP `show ip bgp summary` and `show ip route` (WAN should have default via 192.0.2.2; site routers should have 0.0.0.0/0 via BGP).  
+3. From **jump-1**: ping all router and Linux node IPs, including **external** 192.0.2.2 (egress path).  
+4. From **k8s-a-cp** and **k8s-b-cp**: ping the other site’s CP, jump-1, and 192.0.2.2 to confirm default exit via WAN.  
+
+When all steps pass, the foundation is ready for the next phase (Kubernetes/K3s, Cilium, etc.).
+
+---
+
+## Assumptions
+
+- CML node definitions **iosv** and **ubuntu** exist (or you substitute your image IDs).  
+- IOSv images are licensed and suitable for this topology.  
+- Linux primary interface is **eth0**; if your image uses a different name (e.g. ens3), adjust the netplan/commands accordingly.  
+- Site infrastructure is implemented as point-to-point links (one /30 per link); see **docs/interface-mapping.md** for the exact IPs and gateways.
+
+---
+
+## Notes for next phase
+
+- **Kubernetes/K3s:** Install only on the six k8s-* nodes; use the same interface and default gateways as in this document. Preserve Pod CIDRs (10.42.0.0/16, 10.43.0.0/16) and Service CIDRs (10.52.0.0/16, 10.53.0.0/16) as planned.
+- **Cilium BGP:** Later, add BGP peering between Cilium on cluster nodes and the site routers; advertise LoadBalancer VIPs from pools 10.10.100.0/24 (Site A) and 10.20.100.0/24 (Site B). Do not add BGP or these pools in Phase 1.
+- **Single /24 per site:** If you add an L2 switch (or bridge) per site, you can collapse the three /30s into one 10.10.0.0/24 and 10.20.0.0/24 segment and use k8s-a-cp 10.10.0.11, k8s-a-w1 10.10.0.21, k8s-a-w2 10.10.0.22 (and Site B .11, .21, .22) with a single gateway 10.10.0.1 / 10.20.0.1.
