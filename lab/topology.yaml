@@ -28,7 +28,42 @@ nodes:
         type: physical
 
   - boot_disk_size: null
-    configuration: []
+    configuration:
+      - name: ios_config.txt
+        content: |-
+          hostname wan-rtr
+          no ip domain lookup
+          ip cef
+          interface GigabitEthernet0/0
+           description to jump-1 shared services
+           ip address 10.30.0.1 255.255.255.0
+           no shutdown
+          interface GigabitEthernet0/1
+           description to site-a-rtr WAN
+           ip address 10.255.0.1 255.255.255.252
+           no shutdown
+          interface GigabitEthernet0/2
+           description to site-b-rtr WAN
+           ip address 10.255.0.5 255.255.255.252
+           no shutdown
+          interface GigabitEthernet0/3
+           description to external/Internet transit
+           ip address 192.0.2.1 255.255.255.0
+           no shutdown
+          ip route 0.0.0.0 0.0.0.0 192.0.2.2
+          router bgp 64512
+           bgp router-id 10.255.0.1
+           network 10.30.0.0 mask 255.255.255.0
+           default-information originate
+           neighbor 10.255.0.2 remote-as 64513
+           neighbor 10.255.0.6 remote-as 64514
+           no auto-summary
+          line con 0
+           logging synchronous
+          line vty 0 4
+           no login
+           transport input ssh
+          end
     cpu_limit: null
     cpus: 1
     data_volume: null
@@ -64,7 +99,39 @@ nodes:
         type: physical
 
   - boot_disk_size: null
-    configuration: []
+    configuration:
+      - name: ios_config.txt
+        content: |-
+          hostname site-a-rtr
+          no ip domain lookup
+          ip cef
+          interface GigabitEthernet0/0
+           description to wan-rtr WAN
+           ip address 10.255.0.2 255.255.255.252
+           no shutdown
+          interface GigabitEthernet0/1
+           description to k8s-a-cp
+           ip address 10.10.0.1 255.255.255.252
+           no shutdown
+          interface GigabitEthernet0/2
+           description to k8s-a-w1
+           ip address 10.10.0.5 255.255.255.252
+           no shutdown
+          interface GigabitEthernet0/3
+           description to k8s-a-w2
+           ip address 10.10.0.9 255.255.255.252
+           no shutdown
+          router bgp 64513
+           bgp router-id 10.10.0.1
+           network 10.10.0.0 mask 255.255.255.0
+           neighbor 10.255.0.1 remote-as 64512
+           no auto-summary
+          line con 0
+           logging synchronous
+          line vty 0 4
+           no login
+           transport input ssh
+          end
     cpu_limit: null
     cpus: 1
     data_volume: null
@@ -100,7 +167,39 @@ nodes:
         type: physical
 
   - boot_disk_size: null
-    configuration: []
+    configuration:
+      - name: ios_config.txt
+        content: |-
+          hostname site-b-rtr
+          no ip domain lookup
+          ip cef
+          interface GigabitEthernet0/0
+           description to wan-rtr WAN
+           ip address 10.255.0.6 255.255.255.252
+           no shutdown
+          interface GigabitEthernet0/1
+           description to k8s-b-cp
+           ip address 10.20.0.1 255.255.255.252
+           no shutdown
+          interface GigabitEthernet0/2
+           description to k8s-b-w1
+           ip address 10.20.0.5 255.255.255.252
+           no shutdown
+          interface GigabitEthernet0/3
+           description to k8s-b-w2
+           ip address 10.20.0.9 255.255.255.252
+           no shutdown
+          router bgp 64514
+           bgp router-id 10.20.0.1
+           network 10.20.0.0 mask 255.255.255.0
+           neighbor 10.255.0.5 remote-as 64512
+           no auto-summary
+          line con 0
+           logging synchronous
+          line vty 0 4
+           no login
+           transport input ssh
+          end
     cpu_limit: null
     cpus: 1
     data_volume: null
