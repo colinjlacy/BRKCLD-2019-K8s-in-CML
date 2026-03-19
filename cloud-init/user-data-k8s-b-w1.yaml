@@ -1,0 +1,57 @@
+#cloud-config
+# k8s-b-w1: host prep + wait for Cluster B token + join as agent with node-ip 10.20.0.21
+
+hostname: k8s-b-w1
+
+manage_etc_hosts: false
+
+write_files:
+  - path: /etc/hosts
+    append: true
+    content: |
+      # K8s lab - all nodes
+      10.30.0.10   jump-1
+      10.10.0.11   k8s-a-cp
+      10.10.0.21   k8s-a-w1
+      10.10.0.22   k8s-a-w2
+      10.20.0.11   k8s-b-cp
+      10.20.0.21   k8s-b-w1
+      10.20.0.22   k8s-b-w2
+  - path: /etc/modules-load.d/k8s.conf
+    content: |
+      overlay
+      br_netfilter
+  - path: /etc/sysctl.d/99-kubernetes.conf
+    content: |
+      net.bridge.bridge-nf-call-iptables  = 1
+      net.bridge.bridge-nf-call-ip6tables = 1
+      net.ipv4.ip_forward                 = 1
+
+  - path: /usr/local/bin/k3s-join.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      for i in $(seq 1 60); do
+        TOKEN=$(curl -sf http://10.20.0.11:8999/node-token) && [ -n "$TOKEN" ] && break
+        sleep 5
+      done
+      TOKEN=$(curl -sf http://10.20.0.11:8999/node-token)
+      for j in $(seq 1 24); do
+        curl -sk --connect-timeout 5 https://10.20.0.11:6443/version >/dev/null && break
+        sleep 15
+      done
+      curl -sfL https://get.k3s.io | K3S_URL=https://10.20.0.11:6443 K3S_TOKEN="$TOKEN" sh -s - agent --node-ip=10.20.0.21
+
+package_update: true
+package_upgrade: false
+packages:
+  - curl
+
+runcmd:
+  - modprobe overlay
+  - modprobe br_netfilter
+  - sysctl -p /etc/sysctl.d/99-kubernetes.conf
+  - swapoff -a
+  - sed -i '/\bswap\b/d' /etc/fstab
+  - /usr/local/bin/k3s-join.sh
+  - systemctl enable k3s-agent

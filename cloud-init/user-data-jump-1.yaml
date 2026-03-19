@@ -1,0 +1,41 @@
+#cloud-config
+# jump-1: host prep + fetch kubeconfig from both clusters + install kubectl + basic validation
+# No K3s on this node. Run after control planes and workers are up (or use long wait).
+
+hostname: jump-1
+
+manage_etc_hosts: false
+
+write_files:
+  - path: /etc/hosts
+    append: true
+    content: |
+      # K8s lab - all nodes
+      10.30.0.10   jump-1
+      10.10.0.11   k8s-a-cp
+      10.10.0.21   k8s-a-w1
+      10.10.0.22   k8s-a-w2
+      10.20.0.11   k8s-b-cp
+      10.20.0.21   k8s-b-w1
+      10.20.0.22   k8s-b-w2
+
+package_update: true
+package_upgrade: false
+packages:
+  - curl
+  - kubectl
+
+runcmd:
+  - swapoff -a
+  - sed -i '/\bswap\b/d' /etc/fstab
+  # Wait for both cluster APIs to be reachable (CPs need time to install K3s and start token server; allow 6 min)
+  - for i in $(seq 1 72); do curl -sk https://10.10.0.11:6443/version >/dev/null && curl -sk https://10.20.0.11:6443/version >/dev/null && break; sleep 5; done
+  # Fetch kubeconfig from control planes (they serve on port 8999 after K3s is up)
+  - mkdir -p /root/.kube
+  - curl -s http://10.10.0.11:8999/k3s.yaml -o /root/.kube/k3s-a.yaml
+  - curl -s http://10.20.0.11:8999/k3s.yaml -o /root/.kube/k3s-b.yaml
+  - sed -i 's/127.0.0.1/10.10.0.11/' /root/.kube/k3s-a.yaml
+  - sed -i 's/127.0.0.1/10.20.0.11/' /root/.kube/k3s-b.yaml
+  # Basic validation: list nodes for both clusters
+  - KUBECONFIG=/root/.kube/k3s-a.yaml kubectl get nodes
+  - KUBECONFIG=/root/.kube/k3s-b.yaml kubectl get nodes
