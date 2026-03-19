@@ -18,13 +18,13 @@ Expect: Gi0/0, Gi0/1, Gi0/2, Gi0/3 up, with correct IPs (10.30.0.1, 10.255.0.1, 
 ```
 show ip interface brief
 ```
-Expect: Gi0/0–Gi0/3 up (10.255.0.2, 10.10.0.1, 10.10.0.5, 10.10.0.9).
+Expect: **Gi0/0, Gi0/1** up/up (**10.255.0.2**, **10.10.0.1**); Gi0/2–3 **administratively down** (unused).
 
 **site-b-rtr:**
 ```
 show ip interface brief
 ```
-Expect: Gi0/0–Gi0/3 up (10.255.0.6, 10.20.0.1, 10.20.0.5, 10.20.0.9).
+Expect: **Gi0/0, Gi0/1** up/up (**10.255.0.6**, **10.20.0.1**); Gi0/2–3 **administratively down** (unused).
 
 ---
 
@@ -41,17 +41,17 @@ ping 192.168.0.1
 From **site-a-rtr**:
 ```
 ping 10.255.0.1
-ping 10.10.0.2
-ping 10.10.0.6
-ping 10.10.0.10
+ping 10.10.0.11
+ping 10.10.0.21
+ping 10.10.0.22
 ```
 
 From **site-b-rtr**:
 ```
 ping 10.255.0.5
-ping 10.20.0.2
-ping 10.20.0.6
-ping 10.20.0.10
+ping 10.20.0.11
+ping 10.20.0.21
+ping 10.20.0.22
 ```
 
 All should succeed.
@@ -92,13 +92,13 @@ Expect: **10.10.0.0/24 via 10.255.0.2** and **10.20.0.0/24 via 10.255.0.6** (sta
 ```
 show ip route
 ```
-Expect: 10.20.0.0/24 and 10.30.0.0/24 via BGP; **0.0.0.0/0 via 10.255.0.1** (static to wan-rtr; may also appear via BGP); 10.10.0.0/24 (or /30s) and 10.255.0.0/30 connected.
+Expect: 10.20.0.0/24 and 10.30.0.0/24 via BGP; **0.0.0.0/0 via 10.255.0.1** (static to wan-rtr; may also appear via BGP); **10.10.0.0/24** and **10.255.0.0/30** connected.
 
 **site-b-rtr:**
 ```
 show ip route
 ```
-Expect: 10.10.0.0/24 and 10.30.0.0/24 via BGP; **0.0.0.0/0 via 10.255.0.5** (static to wan-rtr; may also appear via BGP); 10.20.0.0/24 (or /30s) and 10.255.0.4/30 connected.
+Expect: 10.10.0.0/24 and 10.30.0.0/24 via BGP; **0.0.0.0/0 via 10.255.0.5** (static to wan-rtr; may also appear via BGP); **10.20.0.0/24** and **10.255.0.4/30** connected.
 
 ---
 

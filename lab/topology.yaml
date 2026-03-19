@@ -1,6 +1,6 @@
 # Cisco Modeling Labs (CML) 2.x Lab Topology
 # Format matches CML export: annotations, nodes list (id/label/node_definition/interfaces), links (n1/n2/i1/i2), lab.
-# 11 nodes: 3 IOSv, 1 External Connector, 1 jump host, 6 Linux. Limits: 30 GB RAM, 20 vCPU.
+# 13 nodes: 3 IOSv, 2 unmanaged switches, 1 External Connector, 1 jump host, 6 Linux. Limits: 30 GB RAM, 20 vCPU.
 
 annotations: []
 nodes:
@@ -112,17 +112,15 @@ nodes:
            ip address 10.255.0.2 255.255.255.252
            no shutdown
           interface GigabitEthernet0/1
-           description to k8s-a-cp
-           ip address 10.10.0.1 255.255.255.252
+           description to site-a-sw (site A LAN)
+           ip address 10.10.0.1 255.255.255.0
            no shutdown
           interface GigabitEthernet0/2
-           description to k8s-a-w1
-           ip address 10.10.0.5 255.255.255.252
-           no shutdown
+           description unused
+           shutdown
           interface GigabitEthernet0/3
-           description to k8s-a-w2
-           ip address 10.10.0.9 255.255.255.252
-           no shutdown
+           description unused
+           shutdown
           ip route 0.0.0.0 0.0.0.0 10.255.0.1
           router bgp 64513
            bgp router-id 10.10.0.1
@@ -181,17 +179,15 @@ nodes:
            ip address 10.255.0.6 255.255.255.252
            no shutdown
           interface GigabitEthernet0/1
-           description to k8s-b-cp
-           ip address 10.20.0.1 255.255.255.252
+           description to site-b-sw (site B LAN)
+           ip address 10.20.0.1 255.255.255.0
            no shutdown
           interface GigabitEthernet0/2
-           description to k8s-b-w1
-           ip address 10.20.0.5 255.255.255.252
-           no shutdown
+           description unused
+           shutdown
           interface GigabitEthernet0/3
-           description to k8s-b-w2
-           ip address 10.20.0.9 255.255.255.252
-           no shutdown
+           description unused
+           shutdown
           ip route 0.0.0.0 0.0.0.0 10.255.0.5
           router bgp 64514
            bgp router-id 10.20.0.1
@@ -819,6 +815,104 @@ nodes:
         slot: 0
         type: physical
 
+  - boot_disk_size: null
+    configuration: []
+    cpu_limit: null
+    cpus: null
+    data_volume: null
+    hide_links: false
+    id: n11
+    image_definition: null
+    label: site-a-sw
+    node_definition: unmanaged_switch
+    parameters: {}
+    ram: null
+    tags: []
+    x: -260
+    y: 320
+    interfaces:
+      - id: i0
+        label: port0
+        slot: 0
+        type: physical
+      - id: i1
+        label: port1
+        slot: 1
+        type: physical
+      - id: i2
+        label: port2
+        slot: 2
+        type: physical
+      - id: i3
+        label: port3
+        slot: 3
+        type: physical
+      - id: i4
+        label: port4
+        slot: 4
+        type: physical
+      - id: i5
+        label: port5
+        slot: 5
+        type: physical
+      - id: i6
+        label: port6
+        slot: 6
+        type: physical
+      - id: i7
+        label: port7
+        slot: 7
+        type: physical
+
+  - boot_disk_size: null
+    configuration: []
+    cpu_limit: null
+    cpus: null
+    data_volume: null
+    hide_links: false
+    id: n12
+    image_definition: null
+    label: site-b-sw
+    node_definition: unmanaged_switch
+    parameters: {}
+    ram: null
+    tags: []
+    x: 260
+    y: 320
+    interfaces:
+      - id: i0
+        label: port0
+        slot: 0
+        type: physical
+      - id: i1
+        label: port1
+        slot: 1
+        type: physical
+      - id: i2
+        label: port2
+        slot: 2
+        type: physical
+      - id: i3
+        label: port3
+        slot: 3
+        type: physical
+      - id: i4
+        label: port4
+        slot: 4
+        type: physical
+      - id: i5
+        label: port5
+        slot: 5
+        type: physical
+      - id: i6
+        label: port6
+        slot: 6
+        type: physical
+      - id: i7
+        label: port7
+        slot: 7
+        type: physical
+
 links:
   - id: l0
     n1: n1
@@ -850,49 +944,63 @@ links:
     label: wan-rtr-GigabitEthernet0/2<->site-b-rtr-GigabitEthernet0/0
   - id: l4
     n1: n2
-    n2: n5
+    n2: n11
     i1: i2
     i2: i0
     conditioning: {}
-    label: site-a-rtr-GigabitEthernet0/1<->k8s-a-cp-ens2
+    label: site-a-rtr-GigabitEthernet0/1<->site-a-sw-port0
   - id: l5
-    n1: n2
+    n1: n11
+    n2: n5
+    i1: i1
+    i2: i0
+    conditioning: {}
+    label: site-a-sw-port1<->k8s-a-cp-ens2
+  - id: l6
+    n1: n11
     n2: n6
+    i1: i2
+    i2: i0
+    conditioning: {}
+    label: site-a-sw-port2<->k8s-a-w1-ens2
+  - id: l7
+    n1: n11
+    n2: n7
     i1: i3
     i2: i0
     conditioning: {}
-    label: site-a-rtr-GigabitEthernet0/2<->k8s-a-w1-ens2
-  - id: l6
-    n1: n2
-    n2: n7
-    i1: i4
-    i2: i0
-    conditioning: {}
-    label: site-a-rtr-GigabitEthernet0/3<->k8s-a-w2-ens2
-  - id: l7
-    n1: n3
-    n2: n8
-    i1: i2
-    i2: i0
-    conditioning: {}
-    label: site-b-rtr-GigabitEthernet0/1<->k8s-b-cp-ens2
+    label: site-a-sw-port3<->k8s-a-w2-ens2
   - id: l8
     n1: n3
+    n2: n12
+    i1: i2
+    i2: i0
+    conditioning: {}
+    label: site-b-rtr-GigabitEthernet0/1<->site-b-sw-port0
+  - id: l9
+    n1: n12
+    n2: n8
+    i1: i1
+    i2: i0
+    conditioning: {}
+    label: site-b-sw-port1<->k8s-b-cp-ens2
+  - id: l10
+    n1: n12
     n2: n9
+    i1: i2
+    i2: i0
+    conditioning: {}
+    label: site-b-sw-port2<->k8s-b-w1-ens2
+  - id: l11
+    n1: n12
+    n2: n10
     i1: i3
     i2: i0
     conditioning: {}
-    label: site-b-rtr-GigabitEthernet0/2<->k8s-b-w1-ens2
-  - id: l9
-    n1: n3
-    n2: n10
-    i1: i4
-    i2: i0
-    conditioning: {}
-    label: site-b-rtr-GigabitEthernet0/3<->k8s-b-w2-ens2
+    label: site-b-sw-port3<->k8s-b-w2-ens2
 
 lab:
-  description: "Two-site routed topology with WAN, external/Internet segment, site routers, jump host, and cluster nodes. WAN is single default exit. BGP between WAN and site routers. No K8s yet."
-  notes: ""
-  title: "K8s Networking Lab - Foundation"
+  description: 'Two-site routed topology with WAN, external/Internet segment, site routers, one L2 switch per site (k8s LAN), jump host, and cluster nodes. WAN is single default exit. BGP between WAN and site routers. No K8s yet.'
+  notes: ''
+  title: 'K8s Networking Lab - Foundation'
   version: 0.2.2

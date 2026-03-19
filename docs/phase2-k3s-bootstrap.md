@@ -2,7 +2,7 @@
 
 This phase brings up two K3s clusters (Cluster A and Cluster B) on the existing topology with correct addressing and no default CNI (Cilium will be installed in a later phase). No Cilium, Hubble, BGP on Kubernetes, or application workloads in this phase.
 
-**Assumptions:** Ubuntu 22.04 LTS on all Linux nodes; static IPs already assigned per topology. Phase 2 addressing: Cluster A nodes 10.10.0.11/24, .21/24, .22/24 (gateway 10.10.0.1); Cluster B 10.20.0.11/24, .21/24, .22/24 (gateway 10.20.0.1). If your topology uses /30 point-to-point addressing, adjust IPs and gateways in the automation to match.
+**Assumptions:** Ubuntu 22.04 LTS on all Linux nodes; static IPs already assigned per topology. Phase 2 addressing: Cluster A nodes 10.10.0.11/24, .21/24, .22/24 (gateway **10.10.0.1** on site-a-rtr, shared L2 via **site-a-sw**); Cluster B 10.20.0.11/24, .21/24, .22/24 (gateway **10.20.0.1** on site-b-rtr, shared L2 via **site-b-sw**).
 
 ---
 

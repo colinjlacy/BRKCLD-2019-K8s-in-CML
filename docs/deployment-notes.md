@@ -7,7 +7,7 @@ Ordered procedure to bring up the CML topology, assign images, apply router conf
 ## 1. Import or create the CML topology
 
 - **If your CML supports YAML import:** Use **lab/topology.yaml**. Import via Lab Manager (Import Lab) and select the YAML file. Adjust node definitions if your server uses different IDs (e.g. `iosv-l2` instead of `iosv`, or a specific Ubuntu image ID).
-- **If you build by hand:** Create a new lab and add 11 nodes with the names and roles below. Add links as in **docs/interface-mapping.md** and **lab/topology.yaml**. Topology: External → WAN Router → (Site A Router | Shared Svcs/jump-1 | Site B Router).
+- **If you build by hand:** Create a new lab and add **13** nodes with the names and roles below. Add links as in **docs/interface-mapping.md** and **lab/topology.yaml**. Topology: External → WAN Router → (Site A Router | Shared Svcs/jump-1 | Site B Router); each site router connects to an **unmanaged switch** that fans out to the three k8s nodes.
 
 **Node list:**
 
@@ -24,6 +24,8 @@ Ordered procedure to bring up the CML topology, assign images, apply router conf
 | k8s-b-cp   | ubuntu                    | 4096 | 2    | 1          |
 | k8s-b-w1   | ubuntu                    | 2048 | 2    | 1          |
 | k8s-b-w2   | ubuntu                    | 2048 | 2    | 1          |
+| site-a-sw  | unmanaged_switch          | —    | —    | 8 (4 used) |
+| site-b-sw  | unmanaged_switch          | —    | —    | 8 (4 used) |
 
 **Links:**
 
@@ -31,12 +33,8 @@ Ordered procedure to bring up the CML topology, assign images, apply router conf
 - wan-rtr Gi0/0 ↔ jump-1 eth0  
 - wan-rtr Gi0/1 ↔ site-a-rtr Gi0/0  
 - wan-rtr Gi0/2 ↔ site-b-rtr Gi0/0  
-- site-a-rtr Gi0/1 ↔ k8s-a-cp eth0  
-- site-a-rtr Gi0/2 ↔ k8s-a-w1 eth0  
-- site-a-rtr Gi0/3 ↔ k8s-a-w2 eth0  
-- site-b-rtr Gi0/1 ↔ k8s-b-cp eth0  
-- site-b-rtr Gi0/2 ↔ k8s-b-w1 eth0  
-- site-b-rtr Gi0/3 ↔ k8s-b-w2 eth0  
+- site-a-rtr Gi0/1 ↔ site-a-sw port0; site-a-sw port1 ↔ k8s-a-cp; port2 ↔ k8s-a-w1; port3 ↔ k8s-a-w2  
+- site-b-rtr Gi0/1 ↔ site-b-sw port0; site-b-sw port1 ↔ k8s-b-cp; port2 ↔ k8s-b-w1; port3 ↔ k8s-b-w2  
 
 CML interface numbering is 0-based (first interface = slot 0). IOSv maps to GigabitEthernet0/0, 0/1, …
 
@@ -53,7 +51,7 @@ CML interface numbering is 0-based (first interface = slot 0). IOSv maps to Giga
 ## 3. Boot order
 
 1. Start **wan-rtr**, **site-a-rtr**, **site-b-rtr**. Wait until they finish booting (console or CML “booted” state).
-2. Start the **external** External Connector (if it does not start with the link), then **jump-1**, **k8s-a-cp**, **k8s-a-w1**, **k8s-a-w2**, **k8s-b-cp**, **k8s-b-w1**, **k8s-b-w2**.
+2. Start **site-a-sw** and **site-b-sw** (or start them with the lab). Start the **external** External Connector (if it does not start with the link), then **jump-1**, **k8s-a-cp**, **k8s-a-w1**, **k8s-a-w2**, **k8s-b-cp**, **k8s-b-w1**, **k8s-b-w2**.
 3. Wait until all nodes show “booted” or reachable.
 
 ---
@@ -94,7 +92,7 @@ network:
   version: 2
   ethernets:
     eth0:
-      addresses: [10.10.0.2/30]
+      addresses: [10.10.0.11/24]
       routes:
         - to: default
           via: 10.10.0.1
@@ -106,10 +104,10 @@ network:
   version: 2
   ethernets:
     eth0:
-      addresses: [10.10.0.6/30]
+      addresses: [10.10.0.21/24]
       routes:
         - to: default
-          via: 10.10.0.5
+          via: 10.10.0.1
 ```
 
 **k8s-a-w2:**
@@ -118,10 +116,10 @@ network:
   version: 2
   ethernets:
     eth0:
-      addresses: [10.10.0.10/30]
+      addresses: [10.10.0.22/24]
       routes:
         - to: default
-          via: 10.10.0.9
+          via: 10.10.0.1
 ```
 
 **k8s-b-cp:**
@@ -130,7 +128,7 @@ network:
   version: 2
   ethernets:
     eth0:
-      addresses: [10.20.0.2/30]
+      addresses: [10.20.0.11/24]
       routes:
         - to: default
           via: 10.20.0.1
@@ -142,10 +140,10 @@ network:
   version: 2
   ethernets:
     eth0:
-      addresses: [10.20.0.6/30]
+      addresses: [10.20.0.21/24]
       routes:
         - to: default
-          via: 10.20.0.5
+          via: 10.20.0.1
 ```
 
 **k8s-b-w2:**
@@ -154,10 +152,10 @@ network:
   version: 2
   ethernets:
     eth0:
-      addresses: [10.20.0.10/30]
+      addresses: [10.20.0.22/24]
       routes:
         - to: default
-          via: 10.20.0.9
+          via: 10.20.0.1
 ```
 
 **Option B – ip + route commands (temporary):**
@@ -168,7 +166,7 @@ sudo ip link set eth0 up
 sudo ip route add default via 10.30.0.1
 
 # k8s-a-cp
-sudo ip addr add 10.10.0.2/30 dev eth0
+sudo ip addr add 10.10.0.11/24 dev eth0
 sudo ip link set eth0 up
 sudo ip route add default via 10.10.0.1
 # ... (repeat for each host using addresses from interface-mapping.md)
@@ -194,7 +192,7 @@ When all steps pass, the foundation is ready for the next phase (Kubernetes/K3s,
 - CML node definitions **iosv** and **ubuntu** exist (or you substitute your image IDs).  
 - IOSv images are licensed and suitable for this topology.  
 - Linux primary interface is **eth0**; if your image uses a different name (e.g. ens3), adjust the netplan/commands accordingly.  
-- Site infrastructure is implemented as point-to-point links (one /30 per link); see **docs/interface-mapping.md** for the exact IPs and gateways.
+- Site k8s LANs use **one L2 switch per site** and a single **/24** per site (**10.10.0.0/24**, **10.20.0.0/24**); see **docs/interface-mapping.md** for IPs and gateways.
 
 ---
 
@@ -202,4 +200,3 @@ When all steps pass, the foundation is ready for the next phase (Kubernetes/K3s,
 
 - **Kubernetes/K3s:** Install only on the six k8s-* nodes; use the same interface and default gateways as in this document. Preserve Pod CIDRs (10.42.0.0/16, 10.43.0.0/16) and Service CIDRs (10.52.0.0/16, 10.53.0.0/16) as planned.
 - **Cilium BGP:** Later, add BGP peering between Cilium on cluster nodes and the site routers; advertise LoadBalancer VIPs from pools 10.10.100.0/24 (Site A) and 10.20.100.0/24 (Site B). Do not add BGP or these pools in Phase 1.
-- **Single /24 per site:** If you add an L2 switch (or bridge) per site, you can collapse the three /30s into one 10.10.0.0/24 and 10.20.0.0/24 segment and use k8s-a-cp 10.10.0.11, k8s-a-w1 10.10.0.21, k8s-a-w2 10.10.0.22 (and Site B .11, .21, .22) with a single gateway 10.10.0.1 / 10.20.0.1.
