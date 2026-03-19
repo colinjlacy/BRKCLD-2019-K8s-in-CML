@@ -1,7 +1,38 @@
 #cloud-config
+system_info:
+  default_user:
+    name: cisco
+password: cisco
+ssh_pwauth: true
 hostname: k8s-b-w1
 manage_etc_hosts: false
+apt:
+  preserve_sources_list: false
+  primary:
+    - arches: [default]
+      uri: http://mirrors.kernel.org/ubuntu
+  security:
+    - arches: [default]
+      uri: http://mirrors.kernel.org/ubuntu
 write_files:
+  - path: /etc/netplan/99-lab-static.yaml
+    permissions: "0644"
+    content: |
+      network:
+        version: 2
+        ethernets:
+          ens2:
+            dhcp4: false
+            dhcp6: false
+            addresses:
+              - 10.20.0.21/24
+            routes:
+              - to: default
+                via: 10.20.0.1
+            nameservers:
+              addresses:
+                - 8.8.8.8
+                - 1.1.1.1
   - path: /etc/hosts
     append: true
     content: |
@@ -13,7 +44,7 @@ write_files:
       10.20.0.11   k8s-b-cp
       10.20.0.21   k8s-b-w1
       10.20.0.22   k8s-b-w2
-package_update: true
-package_upgrade: false
-packages:
-  - python3
+runcmd:
+  - netplan apply
+  - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 update
+  - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 install -y python3

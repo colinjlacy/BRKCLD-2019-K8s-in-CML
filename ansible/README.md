@@ -2,17 +2,19 @@
 
 Run this after Phase 1 routing works and all Linux nodes have finished cloud-init (hostname, `/etc/hosts`, packages).
 
-## Prerequisites
+## Automated run (default)
 
-- Log in to **jump-1** as user `cisco` (CML default).
-- Copy this entire `ansible/` directory onto jump-1, e.g.  
-  `scp -r ansible cisco@10.30.0.10:~/k8s-lab-ansible`
-- On jump-1, cloud-init should have installed **ansible**, **sshpass**, **python3**, and **curl** (see `lab/topology.yaml` for **jump-1**).
+**jump-1** cloud-init waits for all six K8s nodes to accept **TCP 22** (up to **20 minutes**), clones [BRKCLD-2019-K8s-in-CML](https://github.com/colinjlacy/BRKCLD-2019-K8s-in-CML.git) **branch `ansible`** into `/home/cisco/BRKCLD-2019-K8s-in-CML`, then runs `ansible-playbook site.yml` with a **2-hour** wall-clock limit. Logs: `/var/log/jump-bootstrap.log`.
 
-## Run
+If the wait times out, the script still continues; the playbook’s first play also waits for SSH.
+
+## Manual run (optional)
+
+- Log in to **jump-1** as `cisco`.
+- Either use the cloned repo at `~/BRKCLD-2019-K8s-in-CML/ansible` or copy only this directory, then:
 
 ```bash
-cd ~/k8s-lab-ansible
+cd ~/BRKCLD-2019-K8s-in-CML/ansible
 ansible-playbook site.yml
 ```
 

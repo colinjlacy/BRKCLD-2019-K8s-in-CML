@@ -27,7 +27,7 @@ Ordered procedure to bring up the CML topology, assign images, apply router conf
 
 **Links:**
 
-- wan-rtr Gi0/3 ↔ external (External Connector; 192.0.2.0/24 – Internet/egress; configure connector as NAT or System Bridge on CML server)  
+- wan-rtr Gi0/3 ↔ external (External Connector; **192.168.0.123/24** on WAN, same subnet as home router; use **System Bridge** to your LAN or equivalent so return traffic can route via **192.168.0.1**)  
 - wan-rtr Gi0/0 ↔ jump-1 eth0  
 - wan-rtr Gi0/1 ↔ site-a-rtr Gi0/0  
 - wan-rtr Gi0/2 ↔ site-b-rtr Gi0/0  
@@ -46,7 +46,7 @@ CML interface numbering is 0-based (first interface = slot 0). IOSv maps to Giga
 
 - **Routers:** Attach your licensed **Cisco IOSv** image to wan-rtr, site-a-rtr, site-b-rtr (via node configuration → Image).
 - **Linux nodes:** Attach your preferred **Ubuntu** (or other) server image to jump-1 and all six k8s-* nodes. Ensure the image has SSH and standard networking (e.g. cloud-init or manual config).
-- **External Connector:** No image. In the node’s configuration, set the connector to **NAT** (default) or **System Bridge** as needed. Ensure the CML server bridge used for this connector has (or can reach) a gateway at 192.0.2.2 for the WAN router’s default route, or adjust the WAN router config to match your external segment (e.g. NAT uses 192.168.255.0/24 by default; see [External Connectors](https://developer.cisco.com/docs/modeling-labs/2-6/cml-admin-tools-external-connectors/)).
+- **External Connector:** No image. Prefer **System Bridge** (or a bridge that places Gi0/3 on **192.168.0.0/24**) so **wan-rtr** at **192.168.0.123** can use **192.168.0.1** as default gateway. If your home router is not **192.168.0.1**, change `ip route 0.0.0.0 0.0.0.0` on **wan-rtr** to match. See [External Connectors](https://developer.cisco.com/docs/modeling-labs/2-6/cml-admin-tools-external-connectors/).
 
 ---
 
@@ -70,7 +70,9 @@ CML interface numbering is 0-based (first interface = slot 0). IOSv maps to Giga
 
 ## 5. Configure Linux host IP addresses
 
-Each Linux node gets a single interface (eth0) with the IP and default gateway from **docs/interface-mapping.md**. Use one of the methods below.
+If you use **`lab/topology.yaml`** user-data as-is, cloud-init already applies **static Netplan** on **`ens2`** (address, default gateway, DNS) for all Ubuntu nodes—skip this section unless you need to override.
+
+Otherwise, each Linux node gets a single interface with the IP and default gateway from **docs/interface-mapping.md**. Use one of the methods below (adjust **`eth0`** → **`ens2`** if that matches your image).
 
 **Option A – Netplan (Ubuntu 18.04+):** Create/edit `/etc/netplan/01-netcfg.yaml` (or similar) and apply with `sudo netplan apply`.
 
@@ -179,9 +181,9 @@ sudo ip route add default via 10.10.0.1
 Follow **docs/validation-plan.md** in order:
 
 1. Router `show ip interface brief` and direct pings.  
-2. BGP `show ip bgp summary` and `show ip route` (WAN should have default via 192.0.2.2; site routers should have 0.0.0.0/0 via BGP).  
-3. From **jump-1**: ping all router and Linux node IPs, including **external** 192.0.2.2 (egress path).  
-4. From **k8s-a-cp** and **k8s-b-cp**: ping the other site’s CP, jump-1, and 192.0.2.2 to confirm default exit via WAN.  
+2. BGP `show ip bgp summary` and `show ip route` (WAN should have default via **192.168.0.1**; site routers should have 0.0.0.0/0 via BGP).  
+3. From **jump-1**: ping all router and Linux node IPs, including **192.168.0.123** (wan-rtr outside) and **192.168.0.1** (home router / egress).  
+4. From **k8s-a-cp** and **k8s-b-cp**: ping the other site’s CP, jump-1, and **192.168.0.1** to confirm default exit via WAN.  
 
 When all steps pass, the foundation is ready for the next phase (Kubernetes/K3s, Cilium, etc.).
 

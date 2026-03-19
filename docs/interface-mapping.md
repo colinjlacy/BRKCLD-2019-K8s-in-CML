@@ -13,9 +13,9 @@ This document lists every node, interface, peer, IP address, subnet, and default
 | 0                     | GigabitEthernet0/0 | jump-1    | 10.30.0.1    | 10.30.0.0/24  |
 | 1                     | GigabitEthernet0/1 | site-a-rtr | 10.255.0.1   | 10.255.0.0/30 |
 | 2                     | GigabitEthernet0/2 | site-b-rtr | 10.255.0.5   | 10.255.0.4/30 |
-| 3                     | GigabitEthernet0/3 | external   | 192.0.2.1    | 192.0.2.0/24  |
+| 3                     | GigabitEthernet0/3 | external   | 192.168.0.123 | 192.168.0.0/24 |
 
-Static default route: 0.0.0.0/0 via 192.0.2.2 (external gateway). WAN is the single default-exit point; it originates 0.0.0.0/0 to site routers via BGP.
+Static default route: 0.0.0.0/0 via **192.168.0.1** (home router on the same LAN). WAN is the single default-exit point; it originates 0.0.0.0/0 to site routers via BGP.
 
 ---
 
@@ -28,7 +28,7 @@ Static default route: 0.0.0.0/0 via 192.0.2.2 (external gateway). WAN is the sin
 | 2                     | GigabitEthernet0/2 | k8s-a-w1   | 10.10.0.5    | 10.10.0.4/30  |
 | 3                     | GigabitEthernet0/3 | k8s-a-w2   | 10.10.0.9    | 10.10.0.8/30  |
 
-No default gateway (router).
+Static default route: **0.0.0.0/0 via 10.255.0.1** (wan-rtr on the WAN /30). Traffic to the Internet and unknown prefixes uses wan-rtr → external_connector / home LAN.
 
 ---
 
@@ -41,7 +41,7 @@ No default gateway (router).
 | 2                     | GigabitEthernet0/2 | k8s-b-w1   | 10.20.0.5    | 10.20.0.4/30  |
 | 3                     | GigabitEthernet0/3 | k8s-b-w2   | 10.20.0.9    | 10.20.0.8/30  |
 
-No default gateway (router).
+Static default route: **0.0.0.0/0 via 10.255.0.5** (wan-rtr on the WAN /30). Traffic to the Internet and unknown prefixes uses wan-rtr → external_connector / home LAN.
 
 ---
 
@@ -107,7 +107,7 @@ No default gateway (router).
 |----------------------|--------------|------------|--------|
 | 0                     | wan-rtr     | none       | CML External Connector node; bridges to NAT or System Bridge on the CML server. No VM, no IP on this node. |
 
-The WAN router uses 192.0.2.1/24 on Gi0/3 and has a static default route to **192.0.2.2** (external gateway). The address 192.0.2.2 is provided by the CML server’s external bridge (e.g. NAT gateway or System Bridge) or by an upstream router on that segment. All Linux nodes use their local router as default gateway; traffic to unknown destinations flows site-router → wan-rtr → 192.0.2.2 (external side of the bridge).
+The WAN router uses **192.168.0.123/24** on Gi0/3 (same subnet as the home router) and has a static default route to **192.168.0.1** (typical home-router address—adjust if yours differs). The External Connector bridges this interface to your LAN so return traffic can route back. All Linux nodes use their local router as default gateway; traffic to unknown destinations flows site-router → wan-rtr → home router.
 
 ---
 
@@ -124,7 +124,7 @@ The WAN router uses 192.0.2.1/24 on Gi0/3 and has a static default route to **19
 | 10.20.0.0/30    | Site B rtr–k8s-b-cp   | site-b-rtr .1, k8s-b-cp .2 |
 | 10.20.0.4/30    | Site B rtr–k8s-b-w1   | site-b-rtr .5, k8s-b-w1 .6 |
 | 10.20.0.8/30    | Site B rtr–k8s-b-w2   | site-b-rtr .9, k8s-b-w2 .10 |
-| 192.0.2.0/24    | External/Internet transit | wan-rtr .1; gateway .2 on external side (CML bridge/upstream) |
+| 192.168.0.0/24  | External / home LAN       | wan-rtr Gi0/3 **.123**; default route to home router **.1** (CML External Connector bridges to your LAN) |
 
 ---
 

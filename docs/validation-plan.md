@@ -12,7 +12,7 @@ On each router, confirm all used interfaces are up/up.
 ```
 show ip interface brief
 ```
-Expect: Gi0/0, Gi0/1, Gi0/2, Gi0/3 up, with correct IPs (10.30.0.1, 10.255.0.1, 10.255.0.5, 192.0.2.1).
+Expect: Gi0/0, Gi0/1, Gi0/2, Gi0/3 up, with correct IPs (10.30.0.1, 10.255.0.1, 10.255.0.5, 192.168.0.123).
 
 **site-a-rtr:**
 ```
@@ -35,7 +35,7 @@ From **wan-rtr**:
 ping 10.30.0.10
 ping 10.255.0.2
 ping 10.255.0.6
-ping 192.0.2.2
+ping 192.168.0.1
 ```
 
 From **site-a-rtr**:
@@ -86,19 +86,19 @@ Expect one neighbor (10.255.0.5 AS 64512), state **Established**.
 ```
 show ip route
 ```
-Expect: 10.10.0.0/24 and 10.20.0.0/24 via BGP; 10.30.0.0/24, 192.0.2.0/24, and WAN /30s connected; **0.0.0.0/0 via 192.0.2.2** (static).
+Expect: **10.10.0.0/24 via 10.255.0.2** and **10.20.0.0/24 via 10.255.0.6** (static to site-a-rtr / site-b-rtr; may also appear via BGP); 10.30.0.0/24, 192.168.0.0/24, and WAN /30s connected; **0.0.0.0/0 via 192.168.0.1** (static).
 
 **site-a-rtr:**
 ```
 show ip route
 ```
-Expect: 10.20.0.0/24 and 10.30.0.0/24 via BGP; **0.0.0.0/0 via BGP** (from wan-rtr); 10.10.0.0/24 (or /30s) and 10.255.0.0/30 connected.
+Expect: 10.20.0.0/24 and 10.30.0.0/24 via BGP; **0.0.0.0/0 via 10.255.0.1** (static to wan-rtr; may also appear via BGP); 10.10.0.0/24 (or /30s) and 10.255.0.0/30 connected.
 
 **site-b-rtr:**
 ```
 show ip route
 ```
-Expect: 10.10.0.0/24 and 10.30.0.0/24 via BGP; **0.0.0.0/0 via BGP** (from wan-rtr); 10.20.0.0/24 (or /30s) and 10.255.0.4/30 connected.
+Expect: 10.10.0.0/24 and 10.30.0.0/24 via BGP; **0.0.0.0/0 via 10.255.0.5** (static to wan-rtr; may also appear via BGP); 10.20.0.0/24 (or /30s) and 10.255.0.4/30 connected.
 
 ---
 
@@ -120,8 +120,8 @@ ping -c 2 10.20.0.1
 ping -c 2 10.20.0.2
 ping -c 2 10.20.0.6
 ping -c 2 10.20.0.10
-ping -c 2 192.0.2.1
-ping -c 2 192.0.2.2
+ping -c 2 192.168.0.123
+ping -c 2 192.168.0.1
 ```
 
 All should succeed (foundation connectivity from shared services to both sites, all nodes, and external/egress segment).
@@ -150,7 +150,7 @@ ping -c 2 10.30.0.10
 
 These confirm cross-site and shared-services reachability.
 
-**Optional – default exit (egress):** From **wan-rtr**, `ping 192.0.2.2` tests the link to the External Connector’s bridge (succeeds if the CML server or upstream has a host at .2). From **jump-1** or any cluster node, `ping -c 2 192.0.2.2` tests full egress path (site router → wan-rtr → External Connector → bridge); requires 192.0.2.2 to be reachable on the external side (NAT or System Bridge config).
+**Optional – default exit (egress):** From **wan-rtr**, `ping 192.168.0.1` tests reachability to the home router. From **jump-1** or any cluster node, `ping -c 2 192.168.0.1` tests full egress path (site router → wan-rtr → External Connector → home LAN). Add a return route on the home router to the lab prefixes (e.g. 10.0.0.0/8 or specific subnets) via **192.168.0.123** if you need traffic initiated from the LAN to reach the lab.
 
 ---
 
@@ -162,7 +162,7 @@ These confirm cross-site and shared-services reachability.
 | site-a-rtr | 64513 | 10.10.0.0/24           | wan-rtr (64512)                |
 | site-b-rtr | 64514 | 10.20.0.0/24           | wan-rtr (64512)                |
 
-- WAN has static default 0.0.0.0/0 via 192.0.2.2 and originates it to both site routers so all Linux nodes use WAN as single default exit.
+- WAN has static default 0.0.0.0/0 via 192.168.0.1 and originates it to both site routers. **site-a-rtr** and **site-b-rtr** each have a **static default** to **wan-rtr** (10.255.0.1 and 10.255.0.5 respectively) so unknown-destination traffic always has a path to the WAN, then external_connector / home LAN.
 - WAN learns 10.10.0.0/24 and 10.20.0.0/24 via BGP and re-advertises them to the other site.
 - No BGP to Kubernetes nodes, no LoadBalancer VIPs, no pod routes in this phase.
 

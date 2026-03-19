@@ -1,8 +1,39 @@
 #cloud-config
-# Minimal: Ansible controller. Run K3s from jump-1: copy ansible/ to this host, then ansible-playbook site.yml
+# jump-1: wait for K8s nodes, clone https://github.com/colinjlacy/BRKCLD-2019-K8s-in-CML branch ansible, run ansible/site.yml
+system_info:
+  default_user:
+    name: cisco
+password: cisco
+ssh_pwauth: true
 hostname: jump-1
 manage_etc_hosts: false
+apt:
+  preserve_sources_list: false
+  primary:
+    - arches: [default]
+      uri: http://mirrors.kernel.org/ubuntu
+  security:
+    - arches: [default]
+      uri: http://mirrors.kernel.org/ubuntu
 write_files:
+  - path: /etc/netplan/99-jump-static.yaml
+    permissions: "0644"
+    content: |
+      network:
+        version: 2
+        ethernets:
+          ens2:
+            dhcp4: false
+            dhcp6: false
+            addresses:
+              - 10.30.0.10/24
+            routes:
+              - to: default
+                via: 10.30.0.1
+            nameservers:
+              addresses:
+                - 8.8.8.8
+                - 1.1.1.1
   - path: /etc/hosts
     append: true
     content: |
@@ -14,10 +45,76 @@ write_files:
       10.20.0.11   k8s-b-cp
       10.20.0.21   k8s-b-w1
       10.20.0.22   k8s-b-w2
-package_update: true
-package_upgrade: false
-packages:
-  - ansible
-  - sshpass
-  - python3
-  - curl
+  - path: /usr/local/bin/jump-bootstrap-k3s.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+      LOG=/var/log/jump-bootstrap.log
+      exec > >(tee -a "$LOG") 2>&1
+      K8S_SSH_HOSTS="10.10.0.11 10.10.0.21 10.10.0.22 10.20.0.11 10.20.0.21 10.20.0.22"
+      WAIT_ALL_SSH_SEC=1200
+      POLL_SEC=10
+      REPO_URL="https://github.com/colinjlacy/BRKCLD-2019-K8s-in-CML.git"
+      REPO_BRANCH="ansible"
+      CLONE_DIR="/home/cisco/BRKCLD-2019-K8s-in-CML"
+      PLAYBOOK_TIMEOUT_SEC=7200
+      CLONE_RETRY_MAX=36
+      CLONE_RETRY_SLEEP=10
+      tcp22_open() {
+        local h="$1"
+        timeout 3 bash -c "echo >/dev/tcp/${h}/22" 2>/dev/null
+      }
+      wait_all_ssh() {
+        local start
+        start=$(date +%s)
+        while true; do
+          local now elapsed all
+          now=$(date +%s)
+          elapsed=$((now - start))
+          if (( elapsed >= WAIT_ALL_SSH_SEC )); then
+            echo "WARN: ${WAIT_ALL_SSH_SEC}s elapsed waiting for all K8s nodes on TCP 22; continuing (Ansible will also wait)"
+            return 0
+          fi
+          all=1
+          for h in $K8S_SSH_HOSTS; do
+            if ! tcp22_open "$h"; then
+              all=0
+              break
+            fi
+          done
+          if (( all == 1 )); then
+            echo "All K8s nodes accepting TCP 22 after ${elapsed}s"
+            return 0
+          fi
+          echo "Waiting for K8s nodes SSH (${elapsed}s / ${WAIT_ALL_SSH_SEC}s)..."
+          sleep "$POLL_SEC"
+        done
+      }
+      wait_all_ssh
+      install -d -o cisco -g cisco -m 0755 /home/cisco
+      if [ -d "${CLONE_DIR}/.git" ]; then
+        echo "Repo exists; updating to origin/${REPO_BRANCH}"
+        sudo -u cisco git -C "$CLONE_DIR" fetch origin "$REPO_BRANCH" --depth 1
+        sudo -u cisco git -C "$CLONE_DIR" checkout "$REPO_BRANCH"
+        sudo -u cisco git -C "$CLONE_DIR" reset --hard "origin/${REPO_BRANCH}"
+      else
+        n=0
+        until sudo -u cisco git clone --branch "$REPO_BRANCH" --depth 1 "$REPO_URL" "$CLONE_DIR"; do
+          n=$((n + 1))
+          if (( n >= CLONE_RETRY_MAX )); then
+            echo "FATAL: git clone failed after ${CLONE_RETRY_MAX} attempts"
+            exit 1
+          fi
+          echo "Clone failed; retry in ${CLONE_RETRY_SLEEP}s (${n}/${CLONE_RETRY_MAX})"
+          sleep "$CLONE_RETRY_SLEEP"
+        done
+      fi
+      cd "${CLONE_DIR}/ansible"
+      echo "Running ansible-playbook (wall-clock limit ${PLAYBOOK_TIMEOUT_SEC}s)"
+      timeout --preserve-status "$PLAYBOOK_TIMEOUT_SEC" sudo -u cisco env HOME=/home/cisco ansible-playbook site.yml
+runcmd:
+  - netplan apply
+  - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 update
+  - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 install -y ansible sshpass python3 curl git
+  - /usr/local/bin/jump-bootstrap-k3s.sh
