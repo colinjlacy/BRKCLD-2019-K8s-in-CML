@@ -1,0 +1,264 @@
+---
+# Phase 2: K3s bootstrap from jump-1. Run: ansible-playbook site.yml
+# Prerequisites: network up, minimal cloud-init applied, this repo copied to jump-1 (e.g. ~/k8s-lab-ansible).
+
+- name: Wait for SSH on all K8s nodes (from jump-1)
+  hosts: k8s_nodes
+  gather_facts: false
+  become: false
+  tasks:
+    - name: Wait for port 22
+      ansible.builtin.wait_for:
+        host: "{{ ansible_host }}"
+        port: 22
+        timeout: 300
+
+- name: Linux prep for Kubernetes (all cluster nodes)
+  hosts: k8s_nodes
+  become: true
+  tasks:
+    - name: Ensure kernel modules for Kubernetes
+      ansible.builtin.copy:
+        dest: /etc/modules-load.d/k8s.conf
+        content: |
+          overlay
+          br_netfilter
+        mode: "0644"
+
+    - name: Load modules now
+      ansible.builtin.command: modprobe {{ item }}
+      changed_when: true
+      failed_when: false
+      loop:
+        - overlay
+        - br_netfilter
+
+    - name: Sysctl for Kubernetes
+      ansible.builtin.copy:
+        dest: /etc/sysctl.d/99-kubernetes.conf
+        content: |
+          net.bridge.bridge-nf-call-iptables  = 1
+          net.bridge.bridge-nf-call-ip6tables = 1
+          net.ipv4.ip_forward                 = 1
+        mode: "0644"
+
+    - name: Apply sysctl
+      ansible.builtin.command: sysctl -p /etc/sysctl.d/99-kubernetes.conf
+      changed_when: true
+
+    - name: Disable swap
+      ansible.builtin.command: swapoff -a
+      changed_when: true
+      failed_when: false
+
+    - name: Remove swap from fstab
+      ansible.builtin.lineinfile:
+        path: /etc/fstab
+        state: absent
+        regexp: '^[^#]*\sswap\s'
+
+    - name: Install curl (K3s install script)
+      ansible.builtin.apt:
+        name: curl
+        state: present
+        update_cache: true
+
+- name: Install K3s server — cluster A
+  hosts: k8s_a_control
+  become: true
+  tasks:
+    - name: Install K3s server (CNI-less)
+      ansible.builtin.shell: |
+        set -e
+        curl -sfL https://get.k3s.io | sh -s - server \
+          --node-ip={{ k3s_cp_api_ip }} \
+          --flannel-backend=none \
+          --disable=traefik,servicelb \
+          --disable-network-policy \
+          --disable-kube-proxy
+      args:
+        creates: /etc/systemd/system/k3s.service
+
+    - name: Enable and start k3s
+      ansible.builtin.systemd:
+        name: k3s
+        enabled: true
+        state: started
+
+- name: Install K3s server — cluster B
+  hosts: k8s_b_control
+  become: true
+  tasks:
+    - name: Install K3s server (CNI-less)
+      ansible.builtin.shell: |
+        set -e
+        curl -sfL https://get.k3s.io | sh -s - server \
+          --node-ip={{ k3s_cp_api_ip }} \
+          --flannel-backend=none \
+          --disable=traefik,servicelb \
+          --disable-network-policy \
+          --disable-kube-proxy
+      args:
+        creates: /etc/systemd/system/k3s.service
+
+    - name: Enable and start k3s
+      ansible.builtin.systemd:
+        name: k3s
+        enabled: true
+        state: started
+
+- name: Wait for Kubernetes API (TCP) — cluster A
+  hosts: localhost
+  gather_facts: false
+  become: false
+  tasks:
+    - name: Wait for 6443 on k8s-a-cp
+      ansible.builtin.wait_for:
+        host: 10.10.0.11
+        port: 6443
+        timeout: 300
+
+- name: Wait for Kubernetes API (TCP) — cluster B
+  hosts: localhost
+  gather_facts: false
+  become: false
+  tasks:
+    - name: Wait for 6443 on k8s-b-cp
+      ansible.builtin.wait_for:
+        host: 10.20.0.11
+        port: 6443
+        timeout: 300
+
+- name: Read join token — cluster A (on control plane)
+  hosts: k8s_a_control
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Slurp node token
+      ansible.builtin.slurp:
+        src: /var/lib/rancher/k3s/server/node-token
+      register: k3s_token_slurp
+
+    - name: Publish token as host fact for other plays
+      ansible.builtin.set_fact:
+        k3s_join_token_cluster_a: "{{ k3s_token_slurp.content | b64decode | trim }}"
+
+- name: Join workers — cluster A
+  hosts: k8s_a_workers
+  become: true
+  vars:
+    k3s_join_token: "{{ hostvars['k8s-a-cp']['k3s_join_token_cluster_a'] }}"
+  tasks:
+    - name: Install K3s agent
+      ansible.builtin.shell: |
+        set -e
+        curl -sfL https://get.k3s.io | K3S_URL=https://{{ k3s_cp_api_ip }}:6443 K3S_TOKEN="{{ k3s_join_token }}" sh -s - agent --node-ip={{ ansible_host }}
+      args:
+        creates: /etc/systemd/system/k3s-agent.service
+
+    - name: Enable and start k3s-agent
+      ansible.builtin.systemd:
+        name: k3s-agent
+        enabled: true
+        state: started
+
+- name: Read join token — cluster B (on control plane)
+  hosts: k8s_b_control
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Slurp node token
+      ansible.builtin.slurp:
+        src: /var/lib/rancher/k3s/server/node-token
+      register: k3s_token_slurp
+
+    - name: Publish token as host fact for other plays
+      ansible.builtin.set_fact:
+        k3s_join_token_cluster_b: "{{ k3s_token_slurp.content | b64decode | trim }}"
+
+- name: Join workers — cluster B
+  hosts: k8s_b_workers
+  become: true
+  vars:
+    k3s_join_token: "{{ hostvars['k8s-b-cp']['k3s_join_token_cluster_b'] }}"
+  tasks:
+    - name: Install K3s agent
+      ansible.builtin.shell: |
+        set -e
+        curl -sfL https://get.k3s.io | K3S_URL=https://{{ k3s_cp_api_ip }}:6443 K3S_TOKEN="{{ k3s_join_token }}" sh -s - agent --node-ip={{ ansible_host }}
+      args:
+        creates: /etc/systemd/system/k3s-agent.service
+
+    - name: Enable and start k3s-agent
+      ansible.builtin.systemd:
+        name: k3s-agent
+        enabled: true
+        state: started
+
+- name: Fetch kubeconfig and validate (on jump-1)
+  hosts: localhost
+  gather_facts: false
+  become: false
+  vars:
+    kube_dir: "/home/cisco/.kube"
+  tasks:
+    - name: Ensure kubectl
+      ansible.builtin.apt:
+        name: kubectl
+        state: present
+        update_cache: true
+      become: true
+
+    - name: Ensure ~/.kube
+      ansible.builtin.file:
+        path: "{{ kube_dir }}"
+        state: directory
+        mode: "0700"
+
+    - name: Slurp kubeconfig from cluster A control plane
+      ansible.builtin.slurp:
+        src: /etc/rancher/k3s/k3s.yaml
+      delegate_to: k8s-a-cp
+      become: true
+      register: kc_a
+
+    - name: Slurp kubeconfig from cluster B control plane
+      ansible.builtin.slurp:
+        src: /etc/rancher/k3s/k3s.yaml
+      delegate_to: k8s-b-cp
+      become: true
+      register: kc_b
+
+    - name: Write kubeconfig cluster A
+      ansible.builtin.copy:
+        dest: "{{ kube_dir }}/k3s-a.yaml"
+        content: "{{ kc_a.content | b64decode | replace('127.0.0.1', '10.10.0.11') }}"
+        mode: "0600"
+
+    - name: Write kubeconfig cluster B
+      ansible.builtin.copy:
+        dest: "{{ kube_dir }}/k3s-b.yaml"
+        content: "{{ kc_b.content | b64decode | replace('127.0.0.1', '10.20.0.11') }}"
+        mode: "0600"
+
+    - name: kubectl get nodes — cluster A
+      ansible.builtin.command: kubectl get nodes
+      environment:
+        KUBECONFIG: "{{ kube_dir }}/k3s-a.yaml"
+      register: nodes_a
+      changed_when: false
+
+    - name: Show cluster A nodes
+      ansible.builtin.debug:
+        var: nodes_a.stdout_lines
+
+    - name: kubectl get nodes — cluster B
+      ansible.builtin.command: kubectl get nodes
+      environment:
+        KUBECONFIG: "{{ kube_dir }}/k3s-b.yaml"
+      register: nodes_b
+      changed_when: false
+
+    - name: Show cluster B nodes
+      ansible.builtin.debug:
+        var: nodes_b.stdout_lines

@@ -1,0 +1,3 @@
+# CML Ubuntu default account (lab only — change for any non-lab use).
+ansible_user: cisco
+ansible_ssh_pass: cisco

@@ -1,10 +1,6 @@
 #cloud-config
-# k8s-b-cp: host prep + K3s server (CNI-less) + serve node-token and k3s.yaml on port 8999 for workers and jump-1
-
 hostname: k8s-b-cp
-
 manage_etc_hosts: false
-
 write_files:
   - path: /etc/hosts
     append: true
@@ -17,42 +13,7 @@ write_files:
       10.20.0.11   k8s-b-cp
       10.20.0.21   k8s-b-w1
       10.20.0.22   k8s-b-w2
-  - path: /etc/modules-load.d/k8s.conf
-    content: |
-      overlay
-      br_netfilter
-  - path: /etc/sysctl.d/99-kubernetes.conf
-    content: |
-      net.bridge.bridge-nf-call-iptables  = 1
-      net.bridge.bridge-nf-call-ip6tables = 1
-      net.ipv4.ip_forward                 = 1
-  - path: /usr/local/bin/k3s-serve-token.sh
-    permissions: '0755'
-    content: |
-      #!/bin/bash
-      TOKEN_PATH=/var/lib/rancher/k3s/server/node-token
-      KUBECONFIG_SRC=/etc/rancher/k3s/k3s.yaml
-      SERVEDIR=/tmp/k3s-serve
-      for i in $(seq 1 60); do
-        [ -f "$TOKEN_PATH" ] && break
-        sleep 5
-      done
-      mkdir -p "$SERVEDIR"
-      cp "$TOKEN_PATH" "$SERVEDIR/node-token"
-      sed 's/127.0.0.1/10.20.0.11/' "$KUBECONFIG_SRC" > "$SERVEDIR/k3s.yaml"
-      cd "$SERVEDIR" && exec python3 -m http.server 8999
-
 package_update: true
 package_upgrade: false
 packages:
-  - curl
-
-runcmd:
-  - modprobe overlay
-  - modprobe br_netfilter
-  - sysctl -p /etc/sysctl.d/99-kubernetes.conf
-  - swapoff -a
-  - sed -i '/\bswap\b/d' /etc/fstab
-  - curl -sfL https://get.k3s.io | sh -s - server --node-ip=10.20.0.11 --flannel-backend=none --disable=traefik,servicelb --disable-network-policy --disable-kube-proxy
-  - systemctl enable k3s
-  - nohup /usr/local/bin/k3s-serve-token.sh </dev/null >/var/log/k3s-serve.log 2>&1 &
+  - python3
