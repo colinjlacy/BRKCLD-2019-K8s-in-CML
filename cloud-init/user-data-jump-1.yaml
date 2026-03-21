@@ -75,8 +75,8 @@ write_files:
           now=$(date +%s)
           elapsed=$((now - start))
           if (( elapsed >= WAIT_ALL_SSH_SEC )); then
-            echo "WARN: ${WAIT_ALL_SSH_SEC}s elapsed waiting for all K8s nodes on TCP 22; continuing (Ansible will also wait)"
-            return 0
+            echo "FATAL: ${WAIT_ALL_SSH_SEC}s elapsed and not all K8s nodes accept TCP 22; aborting (do not start Ansible on a partial cluster)"
+            exit 1
           fi
           all=1
           for h in $K8S_SSH_HOSTS; do

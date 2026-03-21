@@ -4,9 +4,7 @@ Run this after Phase 1 routing works and all Linux nodes have finished cloud-ini
 
 ## Automated run (default)
 
-**jump-1** cloud-init waits for all six K8s nodes to accept **TCP 22** (up to **20 minutes**), clones [BRKCLD-2019-K8s-in-CML](https://github.com/colinjlacy/BRKCLD-2019-K8s-in-CML.git) **branch `ansible`** into `/home/cisco/BRKCLD-2019-K8s-in-CML`, then runs `ansible-playbook site.yml` with a **2-hour** wall-clock limit. Logs: `/var/log/jump-bootstrap.log`.
-
-If the wait times out, the script still continues; the playbook’s first play also waits for SSH.
+**jump-1** cloud-init waits until **all six** K8s nodes accept **TCP 22** (up to **20 minutes**). If that wait times out, the bootstrap script **exits with failure** and does **not** run Ansible (avoids SSH UNREACHABLE on slow nodes). After the wait succeeds, it clones [BRKCLD-2019-K8s-in-CML](https://github.com/colinjlacy/BRKCLD-2019-K8s-in-CML.git) **branch `ansible`** into `/home/cisco/BRKCLD-2019-K8s-in-CML`, then runs `ansible-playbook site.yml` with a **2-hour** wall-clock limit. The playbook’s first play waits again (**1200s** per host, **`any_errors_fatal`**) before any real SSH tasks. Logs: `/var/log/jump-bootstrap.log`.
 
 ## Manual run (optional)
 

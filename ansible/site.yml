@@ -6,12 +6,15 @@
   hosts: k8s_nodes
   gather_facts: false
   become: false
+  any_errors_fatal: true
   tasks:
-    - name: Wait for port 22
+    - name: Wait for port 22 (must succeed on every node before real SSH plays)
       ansible.builtin.wait_for:
         host: "{{ ansible_host }}"
         port: 22
-        timeout: 300
+        delay: 0
+        sleep: 5
+        timeout: 1200
       delegate_to: localhost
 
 - name: Linux prep for Kubernetes (all cluster nodes)
@@ -61,8 +64,7 @@
     # cloud-init runcmd runs apt-get on first boot; avoid "Could not get lock ... apt/lists/lock"
     - name: Wait for apt/dpkg locks to clear (cloud-init)
       ansible.builtin.shell: |
-        set -e
-        end=$((SECONDS + 600))
+        end=$((SECONDS + 1200))
         while [ "$SECONDS" -lt "$end" ]; do
           held=0
           if command -v fuser >/dev/null 2>&1; then
@@ -77,9 +79,10 @@
           if [ "$held" -eq 0 ]; then
             exit 0
           fi
-          sleep 3
+          sleep 5
         done
-        exit 0
+        echo "Timed out waiting for apt/dpkg locks to clear" >&2
+        exit 1
       args:
         executable: /bin/bash
       changed_when: false

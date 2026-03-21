@@ -8,7 +8,7 @@ This phase brings up two K3s clusters (Cluster A and Cluster B) on the existing 
 
 ## Automated setup (recommended): cloud-init on jump-1 + Ansible
 
-K3s install, worker join, and basic validation are driven by **Ansible** on **jump-1** (user `cisco`). **jump-1** cloud-init applies **Netplan** then **`apt-get`** installs dependencies (after DNS works), **waits up to 20 minutes** for all six K8s nodes to accept **TCP 22** (then continues even if not all are up—the playbook also waits), **clones** [github.com/colinjlacy/BRKCLD-2019-K8s-in-CML](https://github.com/colinjlacy/BRKCLD-2019-K8s-in-CML.git) **branch `ansible`** to `/home/cisco/BRKCLD-2019-K8s-in-CML`, and runs **`ansible/site.yml`** with a **2-hour** timeout. Logs: `/var/log/jump-bootstrap.log`.
+K3s install, worker join, and basic validation are driven by **Ansible** on **jump-1** (user `cisco`). **jump-1** cloud-init applies **Netplan** then **`apt-get`** installs dependencies (after DNS works), **waits up to 20 minutes** until **all six** K8s nodes accept **TCP 22** (if not, bootstrap **fails** and Ansible is not run), **clones** [github.com/colinjlacy/BRKCLD-2019-K8s-in-CML](https://github.com/colinjlacy/BRKCLD-2019-K8s-in-CML.git) **branch `ansible`** to `/home/cisco/BRKCLD-2019-K8s-in-CML`, and runs **`ansible/site.yml`** with a **2-hour** timeout. The playbook’s first play waits again (**1200s** per host, **`any_errors_fatal`**) before SSH to nodes. Logs: `/var/log/jump-bootstrap.log`.
 
 Other Ubuntu nodes use the same **Netplan + `mirrors.kernel.org` apt** pattern and install **python3** after **`netplan apply`**. See [`lab/topology.yaml`](../lab/topology.yaml) and [`cloud-init/`](../cloud-init/).
 
