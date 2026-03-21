@@ -90,8 +90,8 @@
         state: present
         update_cache: true
 
-- name: Install K3s server — cluster A
-  hosts: k8s_a_control
+- name: Install K3s server — both control planes (parallel)
+  hosts: k8s_control
   become: true
   tasks:
     - name: Install K3s server (CNI-less)
@@ -112,52 +112,49 @@
         enabled: true
         state: started
 
-- name: Install K3s server — cluster B
-  hosts: k8s_b_control
-  become: true
-  tasks:
-    - name: Install K3s server (CNI-less)
-      ansible.builtin.shell: |
-        set -e
-        curl -sfL https://get.k3s.io | sh -s - server \
-          --node-ip={{ k3s_cp_api_ip }} \
-          --flannel-backend=none \
-          --disable=traefik,servicelb \
-          --disable-network-policy \
-          --disable-kube-proxy
-      args:
-        creates: /etc/systemd/system/k3s.service
-
-    - name: Enable and start k3s
-      ansible.builtin.systemd:
-        name: k3s
-        enabled: true
-        state: started
-
-- name: Wait for Kubernetes API (TCP) — cluster A
+- name: Wait for Kubernetes API (TCP) — both clusters (parallel async)
   hosts: localhost
   gather_facts: false
   become: false
   tasks:
-    - name: Wait for 6443 on k8s-a-cp
+    - name: Start wait for 6443 on k8s-a-cp
       ansible.builtin.wait_for:
         host: 10.10.0.11
         port: 6443
         timeout: 300
+      async: 360
+      poll: 0
+      register: wait_api_a
 
-- name: Wait for Kubernetes API (TCP) — cluster B
-  hosts: localhost
-  gather_facts: false
-  become: false
-  tasks:
-    - name: Wait for 6443 on k8s-b-cp
+    - name: Start wait for 6443 on k8s-b-cp
       ansible.builtin.wait_for:
         host: 10.20.0.11
         port: 6443
         timeout: 300
+      async: 360
+      poll: 0
+      register: wait_api_b
 
-- name: Read join token — cluster A (on control plane)
-  hosts: k8s_a_control
+    - name: Wait for k8s-a-cp API check to complete
+      ansible.builtin.async_status:
+        jid: "{{ wait_api_a.ansible_job_id }}"
+      register: wait_api_a_poll
+      until: wait_api_a_poll.finished | default(false)
+      failed_when: wait_api_a_poll.failed | default(false)
+      retries: 200
+      delay: 2
+
+    - name: Wait for k8s-b-cp API check to complete
+      ansible.builtin.async_status:
+        jid: "{{ wait_api_b.ansible_job_id }}"
+      register: wait_api_b_poll
+      until: wait_api_b_poll.finished | default(false)
+      failed_when: wait_api_b_poll.failed | default(false)
+      retries: 200
+      delay: 2
+
+- name: Read join token — both control planes (parallel)
+  hosts: k8s_control
   gather_facts: false
   become: true
   tasks:
@@ -166,48 +163,15 @@
         src: /var/lib/rancher/k3s/server/node-token
       register: k3s_token_slurp
 
-    - name: Publish token as host fact for other plays
+    - name: Publish token as host fact for workers
       ansible.builtin.set_fact:
-        k3s_join_token_cluster_a: "{{ k3s_token_slurp.content | b64decode | trim }}"
+        k3s_join_token: "{{ k3s_token_slurp.content | b64decode | trim }}"
 
-- name: Join workers — cluster A
-  hosts: k8s_a_workers
+- name: Join K3s agents — all workers (parallel)
+  hosts: k8s_workers
   become: true
   vars:
-    k3s_join_token: "{{ hostvars['k8s-a-cp']['k3s_join_token_cluster_a'] }}"
-  tasks:
-    - name: Install K3s agent
-      ansible.builtin.shell: |
-        set -e
-        curl -sfL https://get.k3s.io | K3S_URL=https://{{ k3s_cp_api_ip }}:6443 K3S_TOKEN="{{ k3s_join_token }}" sh -s - agent --node-ip={{ ansible_host }}
-      args:
-        creates: /etc/systemd/system/k3s-agent.service
-
-    - name: Enable and start k3s-agent
-      ansible.builtin.systemd:
-        name: k3s-agent
-        enabled: true
-        state: started
-
-- name: Read join token — cluster B (on control plane)
-  hosts: k8s_b_control
-  gather_facts: false
-  become: true
-  tasks:
-    - name: Slurp node token
-      ansible.builtin.slurp:
-        src: /var/lib/rancher/k3s/server/node-token
-      register: k3s_token_slurp
-
-    - name: Publish token as host fact for other plays
-      ansible.builtin.set_fact:
-        k3s_join_token_cluster_b: "{{ k3s_token_slurp.content | b64decode | trim }}"
-
-- name: Join workers — cluster B
-  hosts: k8s_b_workers
-  become: true
-  vars:
-    k3s_join_token: "{{ hostvars['k8s-b-cp']['k3s_join_token_cluster_b'] }}"
+    k3s_join_token: "{{ hostvars['k8s-a-cp']['k3s_join_token'] if inventory_hostname in groups['k8s_a_workers'] else hostvars['k8s-b-cp']['k3s_join_token'] }}"
   tasks:
     - name: Install K3s agent
       ansible.builtin.shell: |
@@ -229,35 +193,26 @@
   vars:
     kube_dir: "/home/cisco/.kube"
   tasks:
-    - name: Wait for apt locks to clear on jump (cloud-init may be using apt)
-      ansible.builtin.shell: |
-        set -e
-        end=$((SECONDS + 600))
-        while [ "$SECONDS" -lt "$end" ]; do
-          held=0
-          if command -v fuser >/dev/null 2>&1; then
-            fuser /var/lib/apt/lists/lock >/dev/null 2>&1 && held=1 || true
-            fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 && held=1 || true
-          else
-            pgrep -x apt-get >/dev/null 2>&1 && held=1 || true
-            pgrep -x apt >/dev/null 2>&1 && held=1 || true
-          fi
-          if [ "$held" -eq 0 ]; then
-            exit 0
-          fi
-          sleep 3
-        done
-        exit 0
-      args:
-        executable: /bin/bash
+    - name: Detect jump architecture for kubectl binary
+      ansible.builtin.command: uname -m
+      register: jump_uname_m
       changed_when: false
-      become: true
 
-    - name: Ensure kubectl
-      ansible.builtin.apt:
-        name: kubectl
-        state: present
-        update_cache: true
+    - name: Set kubectl download arch
+      ansible.builtin.set_fact:
+        kubectl_dl_arch: "{{ 'arm64' if jump_uname_m.stdout in ['aarch64', 'arm64'] else 'amd64' }}"
+
+    - name: Fetch kubectl stable version
+      ansible.builtin.uri:
+        url: https://dl.k8s.io/release/stable.txt
+        return_content: true
+      register: kubectl_stable_ver
+
+    - name: Install kubectl (upstream binary to /usr/local/bin)
+      ansible.builtin.get_url:
+        url: "https://dl.k8s.io/release/{{ kubectl_stable_ver.content | trim }}/bin/linux/{{ kubectl_dl_arch }}/kubectl"
+        dest: /usr/local/bin/kubectl
+        mode: "0755"
       become: true
 
     - name: Ensure ~/.kube

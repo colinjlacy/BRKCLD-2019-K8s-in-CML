@@ -24,10 +24,10 @@ ansible-playbook site.yml
 
 1. Waits for SSH on all K8s nodes.
 2. Host prep (modules, sysctl, swap, curl) on every cluster node.
-3. Installs K3s server on **k8s-a-cp** and **k8s-b-cp** (CNI-less, same flags as before).
-4. Waits for TCP **6443** on each control plane.
-5. Reads join tokens from each control plane; installs agents on workers with correct `--node-ip`.
-6. On jump-1: installs **kubectl** (if needed), pulls kubeconfig from both clusters into `~/.kube/k3s-a.yaml` and `k3s-b.yaml`, runs `kubectl get nodes` for each.
+3. Installs K3s server on **k8s-a-cp** and **k8s-b-cp** in **parallel** (same play, `hosts: k8s_control`).
+4. Waits for TCP **6443** on both control planes in **parallel** (async `wait_for`).
+5. Reads join tokens from both control planes in **parallel**; installs **k3s-agent** on **all workers** in **parallel** (one play, `hosts: k8s_workers`).
+6. On jump-1: installs **`kubectl`** from **dl.k8s.io** (stable release, **amd64** or **arm64**) to **`/usr/local/bin/kubectl`**, pulls kubeconfig into `~/.kube/k3s-a.yaml` and `k3s-b.yaml`, runs `kubectl get nodes` for each.
 
 Nodes stay **NotReady** until Cilium (later phase).
 
@@ -37,5 +37,5 @@ Nodes stay **NotReady** until Cilium (later phase).
 
 ## Troubleshooting
 
-- **`kubectl` package not found:** enable Ubuntu **universe** or install kubectl from Kubernetes docs; adjust the final play in `site.yml` if needed.
+- **`kubectl` download fails:** jump-1 needs HTTPS to **dl.k8s.io**; check proxy/DNS. The playbook uses the stable version from **https://dl.k8s.io/release/stable.txt**.
 - **Permission denied (sudo):** CML `cisco` user usually has passwordless sudo; if not, set `ansible_become_pass` in `group_vars/all.yml`.
