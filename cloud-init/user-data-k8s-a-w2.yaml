@@ -4,6 +4,8 @@ system_info:
     name: cisco
 password: cisco
 ssh_pwauth: true
+chpasswd:
+  expire: false
 hostname: k8s-a-w2
 manage_etc_hosts: false
 apt:

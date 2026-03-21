@@ -245,6 +245,8 @@ nodes:
               name: cisco
           password: cisco
           ssh_pwauth: true
+          chpasswd:
+            expire: false
           hostname: jump-1
           manage_etc_hosts: false
           apt:
@@ -387,6 +389,8 @@ nodes:
               name: cisco
           password: cisco
           ssh_pwauth: true
+          chpasswd:
+            expire: false
           hostname: k8s-a-cp
           manage_etc_hosts: false
           apt:
@@ -460,6 +464,8 @@ nodes:
               name: cisco
           password: cisco
           ssh_pwauth: true
+          chpasswd:
+            expire: false
           hostname: k8s-a-w1
           manage_etc_hosts: false
           apt:
@@ -533,6 +539,8 @@ nodes:
               name: cisco
           password: cisco
           ssh_pwauth: true
+          chpasswd:
+            expire: false
           hostname: k8s-a-w2
           manage_etc_hosts: false
           apt:
@@ -606,6 +614,8 @@ nodes:
               name: cisco
           password: cisco
           ssh_pwauth: true
+          chpasswd:
+            expire: false
           hostname: k8s-b-cp
           manage_etc_hosts: false
           apt:
@@ -679,6 +689,8 @@ nodes:
               name: cisco
           password: cisco
           ssh_pwauth: true
+          chpasswd:
+            expire: false
           hostname: k8s-b-w1
           manage_etc_hosts: false
           apt:
@@ -752,6 +764,8 @@ nodes:
               name: cisco
           password: cisco
           ssh_pwauth: true
+          chpasswd:
+            expire: false
           hostname: k8s-b-w2
           manage_etc_hosts: false
           apt:

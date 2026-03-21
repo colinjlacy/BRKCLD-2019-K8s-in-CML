@@ -12,6 +12,7 @@
         host: "{{ ansible_host }}"
         port: 22
         timeout: 300
+      delegate_to: localhost
 
 - name: Linux prep for Kubernetes (all cluster nodes)
   hosts: k8s_nodes
@@ -56,6 +57,32 @@
         path: /etc/fstab
         state: absent
         regexp: '^[^#]*\sswap\s'
+
+    # cloud-init runcmd runs apt-get on first boot; avoid "Could not get lock ... apt/lists/lock"
+    - name: Wait for apt/dpkg locks to clear (cloud-init)
+      ansible.builtin.shell: |
+        set -e
+        end=$((SECONDS + 600))
+        while [ "$SECONDS" -lt "$end" ]; do
+          held=0
+          if command -v fuser >/dev/null 2>&1; then
+            fuser /var/lib/apt/lists/lock >/dev/null 2>&1 && held=1 || true
+            fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 && held=1 || true
+            fuser /var/lib/dpkg/lock >/dev/null 2>&1 && held=1 || true
+          else
+            pgrep -x apt-get >/dev/null 2>&1 && held=1 || true
+            pgrep -x apt >/dev/null 2>&1 && held=1 || true
+            pgrep -f unattended-upgrade >/dev/null 2>&1 && held=1 || true
+          fi
+          if [ "$held" -eq 0 ]; then
+            exit 0
+          fi
+          sleep 3
+        done
+        exit 0
+      args:
+        executable: /bin/bash
+      changed_when: false
 
     - name: Install curl (K3s install script)
       ansible.builtin.apt:
@@ -202,6 +229,30 @@
   vars:
     kube_dir: "/home/cisco/.kube"
   tasks:
+    - name: Wait for apt locks to clear on jump (cloud-init may be using apt)
+      ansible.builtin.shell: |
+        set -e
+        end=$((SECONDS + 600))
+        while [ "$SECONDS" -lt "$end" ]; do
+          held=0
+          if command -v fuser >/dev/null 2>&1; then
+            fuser /var/lib/apt/lists/lock >/dev/null 2>&1 && held=1 || true
+            fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 && held=1 || true
+          else
+            pgrep -x apt-get >/dev/null 2>&1 && held=1 || true
+            pgrep -x apt >/dev/null 2>&1 && held=1 || true
+          fi
+          if [ "$held" -eq 0 ]; then
+            exit 0
+          fi
+          sleep 3
+        done
+        exit 0
+      args:
+        executable: /bin/bash
+      changed_when: false
+      become: true
+
     - name: Ensure kubectl
       ansible.builtin.apt:
         name: kubectl
