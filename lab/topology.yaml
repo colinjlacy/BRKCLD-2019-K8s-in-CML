@@ -1015,6 +1015,10 @@ links:
 
 lab:
   description: 'Two-site routed topology with WAN, external/Internet segment, site routers, one L2 switch per site (k8s LAN), jump host, and cluster nodes. WAN is single default exit. BGP between WAN and site routers. No K8s yet.'
-  notes: ''
+  notes: >-
+    Suggested start order (CML YAML cannot enforce this; use staged Start in Workbench or API if needed):
+    (1) external + site-a-sw + site-b-sw, (2) wan-rtr, (3) site-a-rtr + site-b-rtr — wait until IOS is up and Gi0/1 is up/up,
+    (4) jump-1 + all six k8s nodes. Linux cloud-init expects default gateways on site routers to be live; if a site router
+    shows one-way LAN behavior, restart that router after peers are up.
   title: 'K8s Networking Lab - Foundation'
   version: 0.2.2
