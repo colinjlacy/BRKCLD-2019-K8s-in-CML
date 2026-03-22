@@ -1,3 +1,8 @@
 # CML Ubuntu default account (lab only — change for any non-lab use).
 ansible_user: cisco
 ansible_ssh_pass: cisco
+
+# Cilium / Hubble (Helm + CLIs on jump)
+cilium_helm_chart_version: "1.16.5"
+cilium_cli_version: "v0.16.19"
+hubble_cli_version: "v1.16.5"

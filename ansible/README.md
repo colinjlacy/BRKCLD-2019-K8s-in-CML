@@ -25,9 +25,19 @@ ansible-playbook site.yml
 3. Installs K3s server on **k8s-a-cp** and **k8s-b-cp** in **parallel** (same play, `hosts: k8s_control`).
 4. Waits for TCP **6443** on both control planes in **parallel** (async `wait_for`).
 5. Reads join tokens from both control planes in **parallel**; installs **k3s-agent** on **all workers** in **parallel** (one play, `hosts: k8s_workers`).
-6. On jump-1: installs **`kubectl`** from **dl.k8s.io** (stable release, **amd64** or **arm64**) to **`/usr/local/bin/kubectl`**, pulls kubeconfig into `~/.kube/k3s-a.yaml` and `k3s-b.yaml`, runs `kubectl get nodes` for each.
+6. On jump-1: installs **`kubectl`**, pulls kubeconfig into `~/.kube/k3s-a.yaml` and `k3s-b.yaml`, runs `kubectl get nodes` for each.
+7. Installs **Helm**, **Cilium** (kube-proxy replacement, tunnel mode, Hubble + relay + UI) on **both** clusters, **cilium** and **hubble** CLIs on jump.
+8. **`cilium status --wait`**, asserts nodes **Ready**, prints **CEP**, runs **Service + DNS** checks (nginx + curl + nslookup), then deletes transient workloads.
 
-Nodes stay **NotReady** until Cilium (later phase).
+**K3s CIDRs** (see `group_vars/k8s_*_control.yml`): Cluster A pods `10.42.0.0/16`, services `10.52.0.0/16`; Cluster B pods `10.43.0.0/16`, services `10.53.0.0/16`. If K3s was already installed without these flags, remove `/etc/systemd/system/k3s.service` on that control plane and re-run (or rebuild the node).
+
+**Hubble UI from jump (manual, after playbook):**
+
+```bash
+KUBECONFIG=~/.kube/k3s-a.yaml kubectl -n kube-system port-forward svc/hubble-ui 12001:80
+# browse http://127.0.0.1:12001
+KUBECONFIG=~/.kube/k3s-b.yaml kubectl -n kube-system port-forward svc/hubble-ui 12002:80
+```
 
 ## Credentials
 

@@ -427,3 +427,5 @@ When the steps above are done you have:
 - Kubeconfig on jump-1 for both clusters and validation steps to confirm nodes and control plane stability.
 
 Do **not** install Cilium, Hubble, or BGP on the nodes, or deploy applications, until the next phase.
+
+Cilium, Hubble, and networking checks are automated in [`ansible/site.yml`](../ansible/site.yml) after K3s bootstrap.
