@@ -29,7 +29,7 @@ ansible-playbook site.yml
 7. Installs **Helm**, **Cilium** (kube-proxy replacement, tunnel mode, Hubble + relay + UI) on **both** clusters, **cilium** and **hubble** CLIs on jump.
 8. **`cilium status --wait`**, asserts nodes **Ready**, prints **CEP**, runs **Service + DNS** checks (nginx + curl + nslookup), then deletes transient workloads.
 
-**K3s CIDRs** (see `group_vars/k8s_*_control.yml`): Cluster A pods `10.42.0.0/16`, services `10.52.0.0/16`; Cluster B pods `10.43.0.0/16`, services `10.53.0.0/16`. If K3s was already installed without these flags, remove `/etc/systemd/system/k3s.service` on that control plane and re-run (or rebuild the node).
+**K3s CIDRs** (on each control-plane host in `inventory.ini`): Cluster A pods `10.42.0.0/16`, services `10.52.0.0/16`; Cluster B pods `10.43.0.0/16`, services `10.53.0.0/16`. If K3s was already installed without these flags, remove `/etc/systemd/system/k3s.service` on that control plane and re-run (or rebuild the node).
 
 **Hubble UI from jump (manual, after playbook):**
 
