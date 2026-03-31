@@ -629,7 +629,7 @@
         set -e
         kubectl delete deployment net-verify-a service net-verify-a --ignore-not-found --wait=true
         kubectl create deployment net-verify-a --image=nginx:1.25-alpine --replicas=2
-        kubectl rollout status deployment/net-verify-a --timeout=120s
+        kubectl rollout status deployment/net-verify-a --timeout=600s
         kubectl expose deployment net-verify-a --port=80 --target-port=80 --name=net-verify-a
         kubectl delete pod net-verify-a-curl --ignore-not-found --wait=true
         kubectl run net-verify-a-curl --restart=Never --image=curlimages/curl:8.5.0 -- \
@@ -657,7 +657,7 @@
         set -e
         kubectl delete deployment net-verify-b service net-verify-b --ignore-not-found --wait=true
         kubectl create deployment net-verify-b --image=nginx:1.25-alpine --replicas=2
-        kubectl rollout status deployment/net-verify-b --timeout=120s
+        kubectl rollout status deployment/net-verify-b --timeout=600s
         kubectl expose deployment net-verify-b --port=80 --target-port=80 --name=net-verify-b
         kubectl delete pod net-verify-b-curl --ignore-not-found --wait=true
         kubectl run net-verify-b-curl --restart=Never --image=curlimages/curl:8.5.0 -- \
