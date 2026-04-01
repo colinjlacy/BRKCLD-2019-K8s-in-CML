@@ -1,0 +1,28 @@
+---
+# Allow only frontend pods (identity) to reach backend pods in backend-ns.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-frontend-to-backend
+  namespace: backend-ns
+spec:
+  endpointSelector:
+    matchLabels:
+      app: backend
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            "k8s:io.kubernetes.pod.namespace": frontend-ns
+            app: frontend
+---
+# Default deny all ingress to database pods: blocks frontend→database and backend→database.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: database-default-deny-ingress
+  namespace: database-ns
+spec:
+  endpointSelector:
+    matchLabels:
+      app: database
+  ingress: []

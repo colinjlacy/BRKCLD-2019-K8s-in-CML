@@ -1,0 +1,93 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: frontend-ns
+  labels:
+    app: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: docker.io/curlimages/curl:8.11.1
+          command: ["/bin/sh", "-c", "sleep infinity"]
+          readinessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "curl --version >/dev/null"]
+            initialDelaySeconds: 2
+            periodSeconds: 10
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: backend-ns
+  labels:
+    app: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+        - name: backend
+          image: docker.io/hashicorp/http-echo:1.0.0
+          args:
+            - "-listen=:5678"
+            - "-text=backend response"
+          ports:
+            - containerPort: 5678
+              name: http
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 5678
+            initialDelaySeconds: 2
+            periodSeconds: 10
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: database
+  namespace: database-ns
+  labels:
+    app: database
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: database
+  template:
+    metadata:
+      labels:
+        app: database
+    spec:
+      containers:
+        - name: database
+          image: docker.io/hashicorp/http-echo:1.0.0
+          args:
+            - "-listen=:5678"
+            - "-text=database response"
+          ports:
+            - containerPort: 5678
+              name: http
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 5678
+            initialDelaySeconds: 2
+            periodSeconds: 10
