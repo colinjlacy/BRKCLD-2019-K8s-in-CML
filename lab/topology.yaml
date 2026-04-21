@@ -34,25 +34,35 @@ nodes:
           hostname wan-rtr
           no ip domain lookup
           ip cef
+          access-list 1 permit 10.10.0.0 0.0.0.255
+          access-list 1 permit 10.20.0.0 0.0.0.255
+          access-list 1 permit 10.30.0.0 0.0.0.255
+          access-list 1 permit 10.255.0.0 0.0.0.3
+          access-list 1 permit 10.255.0.4 0.0.0.3
           interface GigabitEthernet0/0
            description to jump-1 shared services
            ip address 10.30.0.1 255.255.255.0
+           ip nat inside
            no shutdown
           interface GigabitEthernet0/1
            description to site-a-rtr WAN
            ip address 10.255.0.1 255.255.255.252
+           ip nat inside
            no shutdown
           interface GigabitEthernet0/2
            description to site-b-rtr WAN
            ip address 10.255.0.5 255.255.255.252
+           ip nat inside
            no shutdown
           interface GigabitEthernet0/3
            description to external/Internet transit (home LAN)
-           ip address 192.168.0.123 255.255.255.0
+           ip address 198.18.128.123 255.255.192.0
+           ip nat outside
            no shutdown
-          ip route 0.0.0.0 0.0.0.0 192.168.0.1
+          ip route 0.0.0.0 0.0.0.0 198.18.128.1
           ip route 10.10.0.0 255.255.255.0 10.255.0.2
           ip route 10.20.0.0 255.255.255.0 10.255.0.6
+          ip nat inside source list 1 interface GigabitEthernet0/3 overload
           router bgp 64512
            bgp router-id 10.255.0.1
            network 10.30.0.0 mask 255.255.255.0
