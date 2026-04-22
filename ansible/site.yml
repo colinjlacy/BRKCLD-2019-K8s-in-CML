@@ -413,6 +413,7 @@
           - "k8sServiceHost={{ hostvars['k8s-a-cp'].k3s_cp_api_ip }}"
           - --set
           - k8sServicePort=6443
+          - --timeout=1800s
       environment:
         KUBECONFIG: "{{ kube_cfg }}"
 
@@ -472,6 +473,7 @@
           - "k8sServiceHost={{ hostvars['k8s-b-cp'].k3s_cp_api_ip }}"
           - --set
           - k8sServicePort=6443
+          - --timeout=1800s
       environment:
         KUBECONFIG: "{{ kube_cfg }}"
 
