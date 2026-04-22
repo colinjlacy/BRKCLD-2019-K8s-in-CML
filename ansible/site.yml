@@ -418,17 +418,17 @@
         KUBECONFIG: "{{ kube_cfg }}"
 
     - name: Wait for Cilium DaemonSet ready (cluster A)
-      ansible.builtin.command: kubectl rollout status daemonset/cilium -n kube-system --timeout=600s
+      ansible.builtin.command: kubectl rollout status daemonset/cilium -n kube-system --timeout=1800s
       environment:
         KUBECONFIG: "{{ kube_cfg }}"
 
     - name: Wait for Hubble Relay deployment (cluster A)
-      ansible.builtin.command: kubectl rollout status deployment/hubble-relay -n kube-system --timeout=300s
+      ansible.builtin.command: kubectl rollout status deployment/hubble-relay -n kube-system --timeout=1800s
       environment:
         KUBECONFIG: "{{ kube_cfg }}"
 
     - name: Wait for Hubble UI deployment (cluster A)
-      ansible.builtin.command: kubectl rollout status deployment/hubble-ui -n kube-system --timeout=300s
+      ansible.builtin.command: kubectl rollout status deployment/hubble-ui -n kube-system --timeout=1800s
       environment:
         KUBECONFIG: "{{ kube_cfg }}"
 
@@ -478,17 +478,17 @@
         KUBECONFIG: "{{ kube_cfg }}"
 
     - name: Wait for Cilium DaemonSet ready (cluster B)
-      ansible.builtin.command: kubectl rollout status daemonset/cilium -n kube-system --timeout=600s
+      ansible.builtin.command: kubectl rollout status daemonset/cilium -n kube-system --timeout=1800s
       environment:
         KUBECONFIG: "{{ kube_cfg }}"
 
     - name: Wait for Hubble Relay deployment (cluster B)
-      ansible.builtin.command: kubectl rollout status deployment/hubble-relay -n kube-system --timeout=300s
+      ansible.builtin.command: kubectl rollout status deployment/hubble-relay -n kube-system --timeout=1800s
       environment:
         KUBECONFIG: "{{ kube_cfg }}"
 
     - name: Wait for Hubble UI deployment (cluster B)
-      ansible.builtin.command: kubectl rollout status deployment/hubble-ui -n kube-system --timeout=300s
+      ansible.builtin.command: kubectl rollout status deployment/hubble-ui -n kube-system --timeout=1800s
       environment:
         KUBECONFIG: "{{ kube_cfg }}"
 
