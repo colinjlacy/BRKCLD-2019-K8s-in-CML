@@ -6,6 +6,3 @@ ansible_ssh_pass: cisco
 cilium_helm_chart_version: "1.16.5"
 cilium_cli_version: "v0.16.19"
 hubble_cli_version: "v1.16.5"
-
-# DNS for all k8s nodes (served by jump-1 dnsmasq)
-lab_dns_resolver_ip: "10.30.0.10"

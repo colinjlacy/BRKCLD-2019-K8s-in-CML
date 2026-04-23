@@ -5,7 +5,7 @@ Phase 2 **K3s installation** is done by **Ansible**; **jump-1** cloud-init clone
 ## What cloud-init does
 
 - **`system_info.default_user.name: cisco`**, **`password: cisco`**, **`ssh_pwauth: true`** so the CML default account and SSH password login work as expected.
-- **Netplan:** **`write_files`** → `/etc/netplan/99-*.yaml`, then **`runcmd`:** **`netplan apply`** first (CML often ignores cloud-config **`network:`**). Static **`ens2`**, default via **10.30.0.1** (jump) or **10.10.0.1** / **10.20.0.1** (cluster), DNS **8.8.8.8** / **1.1.1.1**.
+- **Netplan:** **`write_files`** → `/etc/netplan/99-*.yaml`, then **`runcmd`:** **`netplan apply`** first (CML often ignores cloud-config **`network:`**). Static **`ens2`**, default via **10.30.0.1** (jump) or **10.10.0.1** / **10.20.0.1** (cluster); no custom **`nameservers`** (OS / **systemd-resolved** defaults).
 - **`apt`:** **`mirrors.kernel.org/ubuntu`** for primary and security (replaces default archive/security hosts). **`apt-get update` / `install`** run in **`runcmd` after `netplan apply`** so DNS works (cloud-init’s package module runs before **`runcmd`**).
 - Sets **hostname** and appends the shared **`/etc/hosts`** block.
 - **jump-1:** **`apt-get install`** **ansible**, **sshpass**, **python3**, **curl**, **git**; then **`/usr/local/bin/jump-bootstrap-k3s.sh`** (wait for K8s nodes on TCP 22, clone repo branch **`ansible`**, **`ansible-playbook site.yml`**).

@@ -68,7 +68,7 @@ CML interface numbering is 0-based (first interface = slot 0). IOSv maps to Giga
 
 ## 5. Configure Linux host IP addresses
 
-If you use **`lab/topology.yaml`** user-data as-is, cloud-init already applies **static Netplan** on **`ens2`** (address, default gateway, DNS) for all Ubuntu nodes—skip this section unless you need to override.
+If you use **`lab/topology.yaml`** user-data as-is, cloud-init already applies **static Netplan** on **`ens2`** (address, default gateway) for all Ubuntu nodes—skip this section unless you need to override.
 
 Otherwise, each Linux node gets a single interface with the IP and default gateway from **docs/interface-mapping.md**. Use one of the methods below (adjust **`eth0`** → **`ens2`** if that matches your image).
 
