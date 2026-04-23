@@ -282,6 +282,10 @@ nodes:
                       routes:
                         - to: default
                           via: 10.30.0.1
+                      nameservers:
+                        addresses:
+                          - 8.8.8.8
+                          - 1.1.1.1
             - path: /etc/hosts
               append: true
               content: |
@@ -422,6 +426,10 @@ nodes:
                       routes:
                         - to: default
                           via: 10.10.0.1
+                      nameservers:
+                        addresses:
+                          - 8.8.8.8
+                          - 1.1.1.1
             - path: /etc/hosts
               append: true
               content: |
@@ -493,6 +501,10 @@ nodes:
                       routes:
                         - to: default
                           via: 10.10.0.1
+                      nameservers:
+                        addresses:
+                          - 8.8.8.8
+                          - 1.1.1.1
             - path: /etc/hosts
               append: true
               content: |
@@ -564,6 +576,10 @@ nodes:
                       routes:
                         - to: default
                           via: 10.10.0.1
+                      nameservers:
+                        addresses:
+                          - 8.8.8.8
+                          - 1.1.1.1
             - path: /etc/hosts
               append: true
               content: |
@@ -635,6 +651,10 @@ nodes:
                       routes:
                         - to: default
                           via: 10.20.0.1
+                      nameservers:
+                        addresses:
+                          - 8.8.8.8
+                          - 1.1.1.1
             - path: /etc/hosts
               append: true
               content: |
@@ -706,6 +726,10 @@ nodes:
                       routes:
                         - to: default
                           via: 10.20.0.1
+                      nameservers:
+                        addresses:
+                          - 8.8.8.8
+                          - 1.1.1.1
             - path: /etc/hosts
               append: true
               content: |
@@ -777,6 +801,10 @@ nodes:
                       routes:
                         - to: default
                           via: 10.20.0.1
+                      nameservers:
+                        addresses:
+                          - 8.8.8.8
+                          - 1.1.1.1
             - path: /etc/hosts
               append: true
               content: |
