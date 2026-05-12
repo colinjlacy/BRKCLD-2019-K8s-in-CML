@@ -102,13 +102,8 @@
       ansible.builtin.shell: |
         set -e
         curl -sfL https://get.k3s.io | sh -s - server \
-          --node-ip={{ k3s_cp_api_ip }} \
-          --cluster-cidr={{ k3s_cluster_cidr }} \
-          --service-cidr={{ k3s_service_cidr }} \
           --flannel-backend=none \
-          --disable=traefik,servicelb \
-          --disable-network-policy \
-          --disable-kube-proxy
+          --disable-network-policy 
       args:
         creates: /etc/systemd/system/k3s.service
 
