@@ -125,7 +125,7 @@
   tasks:
     - name: Start wait for 6443 on k8s-a-cp
       ansible.builtin.wait_for:
-        host: 10.10.0.11
+        host: 198.18.1.40
         port: 6443
         timeout: 300
       async: 360
@@ -134,7 +134,7 @@
 
     - name: Start wait for 6443 on k8s-b-cp
       ansible.builtin.wait_for:
-        host: 10.20.0.11
+        host: 198.18.1.70
         port: 6443
         timeout: 300
       async: 360
@@ -244,13 +244,13 @@
     - name: Write kubeconfig cluster A
       ansible.builtin.copy:
         dest: "{{ kube_dir }}/k3s-a.yaml"
-        content: "{{ kc_a.content | b64decode | replace('127.0.0.1', '10.10.0.11') }}"
+        content: "{{ kc_a.content | b64decode | replace('127.0.0.1', '198.18.1.40') }}"
         mode: "0600"
 
     - name: Write kubeconfig cluster B
       ansible.builtin.copy:
         dest: "{{ kube_dir }}/k3s-b.yaml"
-        content: "{{ kc_b.content | b64decode | replace('127.0.0.1', '10.20.0.11') }}"
+        content: "{{ kc_b.content | b64decode | replace('127.0.0.1', '198.18.1.70') }}"
         mode: "0600"
 
     - name: kubectl get nodes — cluster A
