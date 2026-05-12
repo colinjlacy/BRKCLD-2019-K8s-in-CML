@@ -34,6 +34,11 @@ nodes:
           hostname wan-rtr
           no ip domain lookup
           ip cef
+          access-list 1 permit 10.10.0.0 0.0.0.255
+          access-list 1 permit 10.20.0.0 0.0.0.255
+          access-list 1 permit 10.30.0.0 0.0.0.255
+          access-list 1 permit 10.255.0.0 0.0.0.3
+          access-list 1 permit 10.255.0.4 0.0.0.3
           interface GigabitEthernet0/0
            description to jump-1 shared services (10.30.0.0/24)
            ip address 10.30.0.1 255.255.255.0
@@ -57,10 +62,7 @@ nodes:
           ip route 0.0.0.0 0.0.0.0 198.18.1.1
           ip route 10.10.0.0 255.255.255.0 10.255.0.2
           ip route 10.20.0.0 255.255.255.0 10.255.0.6
-          access-list 20 permit 10.10.0.0 0.0.0.255
-          access-list 20 permit 10.20.0.0 0.0.0.255
-          access-list 20 permit 10.30.0.0 0.0.0.255
-          ip nat inside source list 20 interface GigabitEthernet0/3 overload
+          ip nat inside source list 1 interface GigabitEthernet0/3 overload
           router bgp 64512
            bgp router-id 10.255.0.1
            network 10.30.0.0 mask 255.255.255.0
