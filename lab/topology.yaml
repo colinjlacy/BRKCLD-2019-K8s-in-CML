@@ -37,6 +37,7 @@ nodes:
           interface GigabitEthernet0/0
            description to jump-1 shared services (10.30.0.0/24)
            ip address 10.30.0.1 255.255.255.0
+           ip nat inside
            no shutdown
           interface GigabitEthernet0/1
            description to site-a-rtr WAN (10.255.0.0/30)
