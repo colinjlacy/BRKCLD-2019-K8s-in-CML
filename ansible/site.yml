@@ -326,8 +326,6 @@
           - --set
           - ipam.mode=kubernetes
           - --set
-          - "ipv4NativeRoutingCIDR={{ hostvars['k8s-a-cp'].k3s_cluster_cidr }}"
-          - --set
           - routingMode=tunnel
           - --set
           - hubble.enabled=true
@@ -385,8 +383,6 @@
           - kubeProxyReplacement=true
           - --set
           - ipam.mode=kubernetes
-          - --set
-          - "ipv4NativeRoutingCIDR={{ hostvars['k8s-b-cp'].k3s_cluster_cidr }}"
           - --set
           - routingMode=tunnel
           - --set
