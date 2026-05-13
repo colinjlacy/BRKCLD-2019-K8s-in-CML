@@ -2,6 +2,8 @@
 # Format matches CML export: annotations, nodes list (id/label/node_definition/interfaces), links (n1/n2/i1/i2), lab.
 # 13 nodes: 3 IOSv (wan-rtr + two site routers), 2 unmanaged switches, 1 External Connector, 1 jump host, 6 Linux.
 # Limits: 30 GB RAM, 20 vCPU. jump-1 dnsmasq caches DNS for image pulls / apt (see /etc/dnsmasq.d/lab-dns-cache.conf).
+# K8s nodes: cloud-init waits up to ~5m for 10.30.0.10:53, then symlinks /etc/resolv.conf to systemd-resolved's resolv.conf
+# (not the stub) so containerd/Go use 10.30.0.10 directly; see lab notes for VM start order.
 
 annotations: []
 nodes:
@@ -306,21 +308,18 @@ nodes:
             - path: /etc/dnsmasq.d/lab-dns-cache.conf
               permissions: "0644"
               content: |
-                # Lab DNS cache on jump-1 (10.30.0.10). Workers use netplan nameservers: 10.30.0.10 then 198.18.133.1.
+                # Lab DNS cache on jump-1 (10.30.0.10). Workers: netplan DNS 10.30.0.10 then 198.18.133.1.
+                # Bind only to ens2 (avoid lo/127.0.0.1 hairpin quirks); conservative EDNS size for NAT/overlay MTU.
                 no-resolv
-                strict-order
                 server=198.18.133.1
                 server=1.1.1.1
                 server=9.9.9.9
-                server=8.8.8.8
                 cache-size=10000
                 dns-forward-max=500
-                edns-packet-max=4096
+                edns-packet-max=1232
                 neg-ttl=30
-                domain-needed
-                bogus-priv
-                bind-dynamic
-                listen-address=10.30.0.10
+                interface=ens2
+                bind-interfaces
             - path: /usr/local/bin/jump-bootstrap-k3s.sh
               permissions: '0755'
               content: |
@@ -329,7 +328,7 @@ nodes:
                 LOG=/var/log/jump-bootstrap.log
                 exec > >(tee -a "$LOG") 2>&1
                 K8S_SSH_HOSTS="10.10.0.11 10.10.0.21 10.10.0.22 10.20.0.11 10.20.0.21 10.20.0.22"
-                WAIT_ALL_SSH_SEC=1200
+                WAIT_ALL_SSH_SEC=1800
                 POLL_SEC=10
                 REPO_URL="https://github.com/colinjlacy/BRKCLD-2019-K8s-in-CML.git"
                 REPO_BRANCH="main"
@@ -391,10 +390,12 @@ nodes:
                 timeout --preserve-status "$PLAYBOOK_TIMEOUT_SEC" sudo -u cisco env HOME=/home/cisco ansible-playbook site.yml
           runcmd:
             - netplan apply
+            - systemctl try-restart systemd-resolved || true
             - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 update
             - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 install -y dnsmasq ansible sshpass python3 curl git
             - systemctl enable dnsmasq
             - systemctl restart dnsmasq
+            - systemctl try-restart systemd-resolved || true
             - /usr/local/bin/jump-bootstrap-k3s.sh
     cpu_limit: null
     cpus: 1
@@ -474,6 +475,10 @@ nodes:
                 10.20.0.22   k8s-b-w2
           runcmd:
             - netplan apply
+            - systemctl try-restart systemd-resolved || true
+            - bash -c 'for i in $(seq 1 60); do timeout 2 bash -c "echo >/dev/tcp/10.30.0.10/53" 2>/dev/null && exit 0; sleep 5; done; exit 0'
+            - ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
+            - systemctl try-restart systemd-resolved || true
             - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 update
             - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 install -y python3
     cpu_limit: null
@@ -554,6 +559,10 @@ nodes:
                 10.20.0.22   k8s-b-w2
           runcmd:
             - netplan apply
+            - systemctl try-restart systemd-resolved || true
+            - bash -c 'for i in $(seq 1 60); do timeout 2 bash -c "echo >/dev/tcp/10.30.0.10/53" 2>/dev/null && exit 0; sleep 5; done; exit 0'
+            - ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
+            - systemctl try-restart systemd-resolved || true
             - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 update
             - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 install -y python3
     cpu_limit: null
@@ -634,6 +643,10 @@ nodes:
                 10.20.0.22   k8s-b-w2
           runcmd:
             - netplan apply
+            - systemctl try-restart systemd-resolved || true
+            - bash -c 'for i in $(seq 1 60); do timeout 2 bash -c "echo >/dev/tcp/10.30.0.10/53" 2>/dev/null && exit 0; sleep 5; done; exit 0'
+            - ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
+            - systemctl try-restart systemd-resolved || true
             - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 update
             - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 install -y python3
     cpu_limit: null
@@ -714,6 +727,10 @@ nodes:
                 10.20.0.22   k8s-b-w2
           runcmd:
             - netplan apply
+            - systemctl try-restart systemd-resolved || true
+            - bash -c 'for i in $(seq 1 60); do timeout 2 bash -c "echo >/dev/tcp/10.30.0.10/53" 2>/dev/null && exit 0; sleep 5; done; exit 0'
+            - ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
+            - systemctl try-restart systemd-resolved || true
             - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 update
             - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 install -y python3
     cpu_limit: null
@@ -794,6 +811,10 @@ nodes:
                 10.20.0.22   k8s-b-w2
           runcmd:
             - netplan apply
+            - systemctl try-restart systemd-resolved || true
+            - bash -c 'for i in $(seq 1 60); do timeout 2 bash -c "echo >/dev/tcp/10.30.0.10/53" 2>/dev/null && exit 0; sleep 5; done; exit 0'
+            - ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
+            - systemctl try-restart systemd-resolved || true
             - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 update
             - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 install -y python3
     cpu_limit: null
@@ -874,6 +895,10 @@ nodes:
                 10.20.0.22   k8s-b-w2
           runcmd:
             - netplan apply
+            - systemctl try-restart systemd-resolved || true
+            - bash -c 'for i in $(seq 1 60); do timeout 2 bash -c "echo >/dev/tcp/10.30.0.10/53" 2>/dev/null && exit 0; sleep 5; done; exit 0'
+            - ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
+            - systemctl try-restart systemd-resolved || true
             - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 update
             - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 install -y python3
     cpu_limit: null
@@ -1083,13 +1108,17 @@ lab:
   description: >-
     Two-site routed topology with WAN, external/Internet segment, site routers, one L2 switch per site (k8s LAN),
     jump host, and cluster nodes. WAN is single default exit. BGP between WAN and site routers. jump-1 runs dnsmasq
-    as a DNS cache (10.30.0.10) with a larger EDNS UDP ceiling and forward fan-out to reduce dropped/large DNS replies
-    during image pulls; all Ubuntu nodes prefer it, with 198.18.133.1 as fallback until the cache is up.
+    as a DNS cache (10.30.0.10) with conservative EDNS sizing and ens2-only bind. All six Kubernetes nodes wait for
+    TCP 53 on 10.30.0.10 (best-effort, up to ~5m) before apt, then point /etc/resolv.conf at
+    /run/systemd/resolve/resolv.conf so containerd and Go resolve via 10.30.0.10/198.18.133.1 without the 127.0.0.53 stub.
+    jump-1 applies the same resolv.conf symlink after dnsmasq starts.
   notes: >-
-    Suggested start order (CML YAML cannot enforce this; use staged Start in Workbench or API if needed):
+    Suggested start order (CML YAML cannot enforce boot order; use staged Start in Workbench or API if needed):
     (1) external + site-a-sw + site-b-sw, (2) wan-rtr, (3) site-a-rtr + site-b-rtr — wait until IOS is up and Gi0/1 is up/up,
-    (4) jump-1 + all six k8s nodes. Linux cloud-init expects default gateways on site routers to be live; if a site router
-    shows one-way LAN behavior, restart that router after peers are up. Start jump-1 before heavy DNS on workers so
-    dnsmasq is listening on 10.30.0.10.
+    (4) jump-1 first until cloud-init finishes dnsmasq (10.30.0.10:53 accepts TCP), (5) all six k8s nodes. K8s cloud-init
+    waits up to ~5 minutes for the cache; if jump is late, apt still proceeds after the wait. Linux cloud-init expects
+    default gateways on site routers to be live; if a site router shows one-way LAN behavior, restart that router after peers are up.
+    jump-bootstrap waits up to WAIT_ALL_SSH_SEC (1800s) for SSH on all six nodes before Ansible; increase inside
+    jump-bootstrap-k3s.sh if your hypervisor is very slow. PLAYBOOK_TIMEOUT_SEC remains 7200s (2h).
   title: 'K8s Networking Lab - Foundation'
   version: 0.3.1

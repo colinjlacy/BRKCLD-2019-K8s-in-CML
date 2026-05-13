@@ -81,7 +81,7 @@ Layer 2 only; all used ports are on the same VLAN (flat segment **10.20.0.0/24**
 |----------------------|------------|-------------|------------|----------------|-----------------|
 | 0                     | eth0       | wan-rtr     | 10.30.0.10 | 10.30.0.0/24   | 10.30.0.1       |
 
-DNS: **10.30.0.10** (jump’s `dnsmasq` cache) first, **198.18.133.1** (CML resolver) second in netplan. Other lab Linux nodes use the same order so lookups hit the cache on jump once it is up. The cache uses a larger EDNS packet ceiling and more concurrent forwards to reduce failures during heavy image pulls.
+DNS: **10.30.0.10** (jump’s `dnsmasq` cache) first, **198.18.133.1** (CML resolver) second in netplan. Other lab Linux nodes use the same order so lookups hit the cache on jump once it is up. dnsmasq binds only to **ens2** (not `bind-dynamic`/`listen-address` combos) and uses a **1232-byte EDNS ceiling** to avoid UDP fragmentation on NAT paths; cloud-init restarts **systemd-resolved** after netplan and jump restarts it again after dnsmasq so the stub re-probes the cache.
 
 ---
 
