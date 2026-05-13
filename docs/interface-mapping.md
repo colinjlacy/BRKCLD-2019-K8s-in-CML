@@ -81,6 +81,8 @@ Layer 2 only; all used ports are on the same VLAN (flat segment **10.20.0.0/24**
 |----------------------|------------|-------------|------------|----------------|-----------------|
 | 0                     | eth0       | wan-rtr     | 10.30.0.10 | 10.30.0.0/24   | 10.30.0.1       |
 
+DNS: **10.30.0.10** (jump’s `dnsmasq` cache) first, **198.18.133.1** (CML resolver) second in netplan. Other lab Linux nodes use the same order so lookups hit the cache on jump once it is up.
+
 ---
 
 ## 7. k8s-a-cp (Linux)
