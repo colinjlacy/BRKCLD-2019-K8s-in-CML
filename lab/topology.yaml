@@ -39,22 +39,22 @@ nodes:
           access-list 1 permit 10.30.0.0 0.0.0.255
           access-list 1 permit 10.255.0.0 0.0.0.3
           access-list 1 permit 10.255.0.4 0.0.0.3
-          interface GigabitEthernet0/0
+          interface GigabitEthernet0
            description to jump-1 shared services (10.30.0.0/24)
            ip address 10.30.0.1 255.255.255.0
            ip nat inside
            no shutdown
-          interface GigabitEthernet0/1
+          interface GigabitEthernet1
            description to site-a-rtr WAN (10.255.0.0/30)
            ip address 10.255.0.1 255.255.255.252
            ip nat inside
            no shutdown
-          interface GigabitEthernet0/2
+          interface GigabitEthernet2
            description to site-b-rtr WAN (10.255.0.4/30)
            ip address 10.255.0.5 255.255.255.252
            ip nat inside
            no shutdown
-          interface GigabitEthernet0/3
+          interface GigabitEthernet3
            description to external router (198.18.1.0/28; upstream 198.18.1.1; /28 avoids overlapping 10.30.0.0/24 and other lab subnets)
            ip address 198.18.1.14 255.255.255.240
            ip nat outside
@@ -62,7 +62,7 @@ nodes:
           ip route 0.0.0.0 0.0.0.0 198.18.1.1
           ip route 10.10.0.0 255.255.255.0 10.255.0.2
           ip route 10.20.0.0 255.255.255.0 10.255.0.6
-          ip nat inside source list 1 interface GigabitEthernet0/3 overload
+          ip nat inside source list 1 interface GigabitEthernet3 overload
           router bgp 64512
            bgp router-id 10.255.0.1
            network 10.30.0.0 mask 255.255.255.0
@@ -77,13 +77,13 @@ nodes:
            transport input ssh
           end
     cpu_limit: null
-    cpus: 1
+    cpus: null
     data_volume: null
     hide_links: false
     id: n1
     image_definition: null
     label: wan-rtr
-    node_definition: iosv
+    node_definition: cat-sdwan-edge
     parameters: {}
     ram: 2048
     tags: []
@@ -94,19 +94,19 @@ nodes:
         label: Loopback0
         type: loopback
       - id: i1
-        label: GigabitEthernet0/0
+        label: GigabitEthernet0
         slot: 0
         type: physical
       - id: i2
-        label: GigabitEthernet0/1
+        label: GigabitEthernet1
         slot: 1
         type: physical
       - id: i3
-        label: GigabitEthernet0/2
+        label: GigabitEthernet2
         slot: 2
         type: physical
       - id: i4
-        label: GigabitEthernet0/3
+        label: GigabitEthernet3
         slot: 3
         type: physical
 
@@ -993,28 +993,28 @@ links:
     i1: i4
     i2: i0
     conditioning: {}
-    label: wan-rtr-GigabitEthernet0/3<->external-port
+    label: wan-rtr-GigabitEthernet3<->external-port
   - id: l1
     n1: n1
     n2: n4
     i1: i1
     i2: i0
     conditioning: {}
-    label: wan-rtr-GigabitEthernet0/0<->jump-1-ens2
+    label: wan-rtr-GigabitEthernet0<->jump-1-ens2
   - id: l2
     n1: n1
     n2: n2
     i1: i2
     i2: i1
     conditioning: {}
-    label: wan-rtr-GigabitEthernet0/1<->site-a-rtr-GigabitEthernet0/0
+    label: wan-rtr-GigabitEthernet1<->site-a-rtr-GigabitEthernet0/0
   - id: l3
     n1: n1
     n2: n3
     i1: i3
     i2: i1
     conditioning: {}
-    label: wan-rtr-GigabitEthernet0/2<->site-b-rtr-GigabitEthernet0/0
+    label: wan-rtr-GigabitEthernet2<->site-b-rtr-GigabitEthernet0/0
   - id: l4
     n1: n2
     n2: n11
