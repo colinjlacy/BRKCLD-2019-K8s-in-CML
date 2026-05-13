@@ -67,7 +67,7 @@ nodes:
            transport input ssh
           end
     cpu_limit: null
-    cpus: 1
+    cpus: 2
     data_volume: null
     hide_links: false
     id: n1
