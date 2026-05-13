@@ -103,7 +103,8 @@
         set -e
         curl -sfL https://get.k3s.io | sh -s - server \
           --flannel-backend=none \
-          --disable-network-policy 
+          --disable-network-policy \
+          --kubelet-arg=serialize-image-pulls=true
       args:
         creates: /etc/systemd/system/k3s.service
 
@@ -177,7 +178,9 @@
     - name: Install K3s agent
       ansible.builtin.shell: |
         set -e
-        curl -sfL https://get.k3s.io | K3S_URL=https://{{ k3s_cp_api_ip }}:6443 K3S_TOKEN="{{ k3s_join_token }}" sh -s - agent --node-ip={{ ansible_host }}
+        curl -sfL https://get.k3s.io | K3S_URL=https://{{ k3s_cp_api_ip }}:6443 K3S_TOKEN="{{ k3s_join_token }}" sh -s - agent \
+          --node-ip={{ ansible_host }} \
+          --kubelet-arg=serialize-image-pulls=true
       args:
         creates: /etc/systemd/system/k3s-agent.service
 
