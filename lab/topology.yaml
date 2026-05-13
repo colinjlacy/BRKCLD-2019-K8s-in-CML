@@ -1,6 +1,7 @@
 # Cisco Modeling Labs (CML) 2.x Lab Topology
 # Format matches CML export: annotations, nodes list (id/label/node_definition/interfaces), links (n1/n2/i1/i2), lab.
-# 13 nodes: 2 IOSv, 1 cat-sdwan-edge (wan-rtr), 2 unmanaged switches, 1 External Connector, 1 jump host, 6 Linux. Limits: 30 GB RAM, 20 vCPU.
+# 13 nodes: 3 IOSv (wan-rtr + two site routers), 2 unmanaged switches, 1 External Connector, 1 jump host, 6 Linux.
+# Limits: 30 GB RAM, 20 vCPU. jump-1 dnsmasq caches DNS for image pulls / apt (see /etc/dnsmasq.d/lab-dns-cache.conf).
 
 annotations: []
 nodes:
@@ -39,30 +40,30 @@ nodes:
           access-list 1 permit 10.30.0.0 0.0.0.255
           access-list 1 permit 10.255.0.0 0.0.0.3
           access-list 1 permit 10.255.0.4 0.0.0.3
-          interface GigabitEthernet1
-           description to jump-1 shared services (10.30.0.0/24)
+          interface GigabitEthernet0/0
+           description to jump-1 shared services
            ip address 10.30.0.1 255.255.255.0
            ip nat inside
            no shutdown
-          interface GigabitEthernet2
-           description to site-a-rtr WAN (10.255.0.0/30)
+          interface GigabitEthernet0/1
+           description to site-a-rtr WAN
            ip address 10.255.0.1 255.255.255.252
            ip nat inside
            no shutdown
-          interface GigabitEthernet3
-           description to site-b-rtr WAN (10.255.0.4/30)
+          interface GigabitEthernet0/2
+           description to site-b-rtr WAN
            ip address 10.255.0.5 255.255.255.252
            ip nat inside
            no shutdown
-          interface GigabitEthernet4
-           description to external router (198.18.1.0/28; upstream 198.18.1.1; /28 avoids overlapping 10.30.0.0/24 and other lab subnets)
-           ip address 198.18.1.14 255.255.255.240
+          interface GigabitEthernet0/3
+           description to external/Internet transit
+           ip address 198.18.1.14 255.255.255.0
            ip nat outside
            no shutdown
           ip route 0.0.0.0 0.0.0.0 198.18.1.1
           ip route 10.10.0.0 255.255.255.0 10.255.0.2
           ip route 10.20.0.0 255.255.255.0 10.255.0.6
-          ip nat inside source list 1 interface GigabitEthernet4 overload
+          ip nat inside source list 1 interface GigabitEthernet0/3 overload
           router bgp 64512
            bgp router-id 10.255.0.1
            network 10.30.0.0 mask 255.255.255.0
@@ -83,7 +84,7 @@ nodes:
     id: n1
     image_definition: null
     label: wan-rtr
-    node_definition: cat-sdwan-edge
+    node_definition: iosv
     parameters: {}
     ram: 2048
     tags: []
@@ -94,19 +95,19 @@ nodes:
         label: Loopback0
         type: loopback
       - id: i1
-        label: GigabitEthernet1
+        label: GigabitEthernet0/0
         slot: 0
         type: physical
       - id: i2
-        label: GigabitEthernet2
+        label: GigabitEthernet0/1
         slot: 1
         type: physical
       - id: i3
-        label: GigabitEthernet3
+        label: GigabitEthernet0/2
         slot: 2
         type: physical
       - id: i4
-        label: GigabitEthernet4
+        label: GigabitEthernet0/3
         slot: 3
         type: physical
 
@@ -305,16 +306,20 @@ nodes:
             - path: /etc/dnsmasq.d/lab-dns-cache.conf
               permissions: "0644"
               content: |
-                # Lab DNS cache on jump-1 (10.30.0.10): cluster nodes use this first; forward to upstream resolvers.
+                # Lab DNS cache on jump-1 (10.30.0.10). Workers use netplan nameservers: 10.30.0.10 then 198.18.133.1.
                 no-resolv
+                strict-order
                 server=198.18.133.1
                 server=1.1.1.1
                 server=9.9.9.9
                 server=8.8.8.8
-                cache-size=4000
+                cache-size=10000
+                dns-forward-max=500
+                edns-packet-max=4096
+                neg-ttl=30
                 domain-needed
                 bogus-priv
-                bind-interfaces
+                bind-dynamic
                 listen-address=10.30.0.10
             - path: /usr/local/bin/jump-bootstrap-k3s.sh
               permissions: '0755'
@@ -995,28 +1000,28 @@ links:
     i1: i4
     i2: i0
     conditioning: {}
-    label: wan-rtr-GigabitEthernet4<->external-port
+    label: wan-rtr-GigabitEthernet0/3<->external-port
   - id: l1
     n1: n1
     n2: n4
     i1: i1
     i2: i0
     conditioning: {}
-    label: wan-rtr-GigabitEthernet1<->jump-1-ens2
+    label: wan-rtr-GigabitEthernet0/0<->jump-1-ens2
   - id: l2
     n1: n1
     n2: n2
     i1: i2
     i2: i1
     conditioning: {}
-    label: wan-rtr-GigabitEthernet2<->site-a-rtr-GigabitEthernet0/0
+    label: wan-rtr-GigabitEthernet0/1<->site-a-rtr-GigabitEthernet0/0
   - id: l3
     n1: n1
     n2: n3
     i1: i3
     i2: i1
     conditioning: {}
-    label: wan-rtr-GigabitEthernet3<->site-b-rtr-GigabitEthernet0/0
+    label: wan-rtr-GigabitEthernet0/2<->site-b-rtr-GigabitEthernet0/0
   - id: l4
     n1: n2
     n2: n11
@@ -1078,7 +1083,8 @@ lab:
   description: >-
     Two-site routed topology with WAN, external/Internet segment, site routers, one L2 switch per site (k8s LAN),
     jump host, and cluster nodes. WAN is single default exit. BGP between WAN and site routers. jump-1 runs dnsmasq
-    as a DNS cache (10.30.0.10); all Ubuntu nodes prefer it, with 198.18.133.1 as fallback until the cache is up.
+    as a DNS cache (10.30.0.10) with a larger EDNS UDP ceiling and forward fan-out to reduce dropped/large DNS replies
+    during image pulls; all Ubuntu nodes prefer it, with 198.18.133.1 as fallback until the cache is up.
   notes: >-
     Suggested start order (CML YAML cannot enforce this; use staged Start in Workbench or API if needed):
     (1) external + site-a-sw + site-b-sw, (2) wan-rtr, (3) site-a-rtr + site-b-rtr — wait until IOS is up and Gi0/1 is up/up,
@@ -1086,4 +1092,4 @@ lab:
     shows one-way LAN behavior, restart that router after peers are up. Start jump-1 before heavy DNS on workers so
     dnsmasq is listening on 10.30.0.10.
   title: 'K8s Networking Lab - Foundation'
-  version: 0.2.3
+  version: 0.3.1
