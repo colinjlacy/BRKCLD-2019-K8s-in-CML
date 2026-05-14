@@ -81,7 +81,7 @@ Layer 2 only; all used ports are on the same VLAN (flat segment **10.20.0.0/24**
 |----------------------|------------|-------------|------------|----------------|-----------------|
 | 0                     | eth0       | wan-rtr     | 10.30.0.10 | 10.30.0.0/24   | 10.30.0.1       |
 
-DNS: **10.30.0.10** (jump’s `dnsmasq` cache) first, **198.18.133.1** (CML resolver) second in netplan. Other lab Linux nodes use the same order so lookups hit the cache on jump once it is up. dnsmasq binds only to **ens2** (not `bind-dynamic`/`listen-address` combos) and uses a **1232-byte EDNS ceiling** to avoid UDP fragmentation on NAT paths; cloud-init restarts **systemd-resolved** after netplan and jump restarts it again after dnsmasq so the stub re-probes the cache.
+DNS: **10.30.0.10** only on **cluster** Linux netplan (jump’s `dnsmasq`). **jump-1** netplan uses **10.30.0.10** then **198.18.133.1** so `apt` during cloud-init works before `dnsmasq` is installed on the same host. dnsmasq on jump still forwards to **198.18.133.1** and public `server=` lines upstream. dnsmasq binds only to **ens2** and uses a **1232-byte EDNS ceiling**; cloud-init restarts **systemd-resolved** after netplan and jump restarts it again after dnsmasq. Nodes symlink **`/etc/resolv.conf`** to **`/run/systemd/resolve/resolv.conf`** so containerd uses the cache directly.
 
 ---
 

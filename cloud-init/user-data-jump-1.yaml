@@ -39,6 +39,7 @@ write_files:
                 via: 10.30.0.1
             nameservers:
               addresses:
+                - 10.30.0.10
                 - 198.18.133.1
   - path: /etc/hosts
     append: true

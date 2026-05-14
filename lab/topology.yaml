@@ -308,14 +308,14 @@ nodes:
             - path: /etc/dnsmasq.d/lab-dns-cache.conf
               permissions: "0644"
               content: |
-                # Lab DNS cache on jump-1 (10.30.0.10). Workers: netplan DNS 10.30.0.10 then 198.18.133.1.
+                # Lab DNS cache on jump-1 (10.30.0.10). K8s nodes: netplan DNS 10.30.0.10 only. jump-1 netplan keeps 198.18.133.1 second so apt works before dnsmasq is installed; dnsmasq still server= forwards upstream.
                 # Bind only to ens2 (avoid lo/127.0.0.1 hairpin quirks); conservative EDNS size for NAT/overlay MTU.
                 no-resolv
                 server=198.18.133.1
                 server=1.1.1.1
                 server=9.9.9.9
                 cache-size=10000
-                dns-forward-max=500
+                dns-forward-max=2000
                 edns-packet-max=1232
                 neg-ttl=30
                 interface=ens2
@@ -461,7 +461,6 @@ nodes:
                       nameservers:
                         addresses:
                           - 10.30.0.10
-                          - 198.18.133.1
             - path: /etc/hosts
               append: true
               content: |
@@ -545,7 +544,6 @@ nodes:
                       nameservers:
                         addresses:
                           - 10.30.0.10
-                          - 198.18.133.1
             - path: /etc/hosts
               append: true
               content: |
@@ -629,7 +627,6 @@ nodes:
                       nameservers:
                         addresses:
                           - 10.30.0.10
-                          - 198.18.133.1
             - path: /etc/hosts
               append: true
               content: |
@@ -713,7 +710,6 @@ nodes:
                       nameservers:
                         addresses:
                           - 10.30.0.10
-                          - 198.18.133.1
             - path: /etc/hosts
               append: true
               content: |
@@ -797,7 +793,6 @@ nodes:
                       nameservers:
                         addresses:
                           - 10.30.0.10
-                          - 198.18.133.1
             - path: /etc/hosts
               append: true
               content: |
@@ -881,7 +876,6 @@ nodes:
                       nameservers:
                         addresses:
                           - 10.30.0.10
-                          - 198.18.133.1
             - path: /etc/hosts
               append: true
               content: |
@@ -1110,13 +1104,13 @@ lab:
     jump host, and cluster nodes. WAN is single default exit. BGP between WAN and site routers. jump-1 runs dnsmasq
     as a DNS cache (10.30.0.10) with conservative EDNS sizing and ens2-only bind. All six Kubernetes nodes wait for
     TCP 53 on 10.30.0.10 (best-effort, up to ~5m) before apt, then point /etc/resolv.conf at
-    /run/systemd/resolve/resolv.conf so containerd and Go resolve via 10.30.0.10/198.18.133.1 without the 127.0.0.53 stub.
+    /run/systemd/resolve/resolv.conf so containerd and Go use 10.30.0.10 (jump dnsmasq) on cluster nodes without the 127.0.0.53 stub; jump-1 netplan still lists 198.18.133.1 second so its own apt can resolve before dnsmasq is installed.
     jump-1 applies the same resolv.conf symlink after dnsmasq starts.
   notes: >-
     Suggested start order (CML YAML cannot enforce boot order; use staged Start in Workbench or API if needed):
     (1) external + site-a-sw + site-b-sw, (2) wan-rtr, (3) site-a-rtr + site-b-rtr — wait until IOS is up and Gi0/1 is up/up,
     (4) jump-1 first until cloud-init finishes dnsmasq (10.30.0.10:53 accepts TCP), (5) all six k8s nodes. K8s cloud-init
-    waits up to ~5 minutes for the cache; if jump is late, apt still proceeds after the wait. Linux cloud-init expects
+    waits up to ~5 minutes for the cache; without a second resolver in netplan, start jump before K8s nodes if you need apt during that window. Linux cloud-init expects
     default gateways on site routers to be live; if a site router shows one-way LAN behavior, restart that router after peers are up.
     jump-bootstrap waits up to WAIT_ALL_SSH_SEC (1800s) for SSH on all six nodes before Ansible; increase inside
     jump-bootstrap-k3s.sh if your hypervisor is very slow. PLAYBOOK_TIMEOUT_SEC remains 7200s (2h).

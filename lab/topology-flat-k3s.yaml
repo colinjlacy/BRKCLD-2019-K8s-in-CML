@@ -1,0 +1,506 @@
+# Cisco Modeling Labs (CML) 2.x Lab Topology
+# Flat K3s lab: one external connector, one unmanaged switch, one mgmt host, and three K3s nodes.
+
+annotations: []
+nodes:
+  - boot_disk_size: null
+    configuration:
+      - name: default
+        content: bridge1
+    cpu_limit: null
+    cpus: null
+    data_volume: null
+    hide_links: false
+    id: n0
+    image_definition: null
+    label: external
+    node_definition: external_connector
+    parameters: {}
+    ram: null
+    tags: []
+    x: -200
+    y: -100
+    interfaces:
+      - id: i0
+        label: port
+        slot: 0
+        type: physical
+
+  - boot_disk_size: null
+    configuration: []
+    cpu_limit: null
+    cpus: null
+    data_volume: null
+    hide_links: false
+    id: n1
+    image_definition: null
+    label: lab-sw
+    node_definition: unmanaged_switch
+    parameters: {}
+    ram: null
+    tags: []
+    x: 0
+    y: -100
+    interfaces:
+      - id: i0
+        label: port0
+        slot: 0
+        type: physical
+      - id: i1
+        label: port1
+        slot: 1
+        type: physical
+      - id: i2
+        label: port2
+        slot: 2
+        type: physical
+      - id: i3
+        label: port3
+        slot: 3
+        type: physical
+      - id: i4
+        label: port4
+        slot: 4
+        type: physical
+      - id: i5
+        label: port5
+        slot: 5
+        type: physical
+      - id: i6
+        label: port6
+        slot: 6
+        type: physical
+      - id: i7
+        label: port7
+        slot: 7
+        type: physical
+
+  - boot_disk_size: null
+    configuration:
+      - name: user-data
+        content: |-
+          #cloud-config
+          system_info:
+            default_user:
+              name: cisco
+          password: cisco
+          ssh_pwauth: true
+          chpasswd:
+            expire: false
+          hostname: mgmt
+          manage_etc_hosts: false
+          apt:
+            preserve_sources_list: false
+            primary:
+              - arches: [default]
+                uri: http://mirrors.kernel.org/ubuntu
+            security:
+              - arches: [default]
+                uri: http://mirrors.kernel.org/ubuntu
+          write_files:
+            - path: /etc/cloud/cloud.cfg.d/99-lab-disable-cloud-init-network.cfg
+              permissions: "0644"
+              content: |
+                network:
+                  config: disabled
+            - path: /etc/netplan/50-cloud-init.yaml
+              permissions: "0644"
+              content: |
+                network:
+                  version: 2
+                  ethernets:
+                    ens2:
+                      dhcp4: false
+                      dhcp6: false
+                      addresses:
+                        - 198.18.1.10/24
+                      routes:
+                        - to: default
+                          via: 198.18.1.1
+                      nameservers:
+                        addresses:
+                          - 198.18.133.1
+            - path: /etc/hosts
+              append: true
+              content: |
+                # Flat K3s lab
+                198.18.1.10   mgmt
+                198.18.1.11   k8s-cp
+                198.18.1.12   k8s-w1
+                198.18.1.13   k8s-w2
+            - path: /usr/local/bin/mgmt-bootstrap-k3s.sh
+              permissions: "0755"
+              content: |
+                #!/bin/bash
+                set -euo pipefail
+                LOG=/var/log/mgmt-bootstrap-k3s.log
+                exec > >(tee -a "$LOG") 2>&1
+
+                K8S_SSH_HOSTS="198.18.1.11 198.18.1.12 198.18.1.13"
+                WAIT_ALL_SSH_SEC=1800
+                POLL_SEC=10
+                REPO_URL="https://github.com/colinjlacy/BRKCLD-2019-K8s-in-CML.git"
+                REPO_BRANCH="main"
+                CLONE_DIR="/home/cisco/BRKCLD-2019-K8s-in-CML"
+                PLAYBOOK_TIMEOUT_SEC=3600
+                CLONE_RETRY_MAX=36
+                CLONE_RETRY_SLEEP=10
+
+                tcp22_open() {
+                  local h="$1"
+                  timeout 3 bash -c "echo >/dev/tcp/${h}/22" 2>/dev/null
+                }
+
+                wait_all_ssh() {
+                  local start
+                  start=$(date +%s)
+                  while true; do
+                    local now elapsed all
+                    now=$(date +%s)
+                    elapsed=$((now - start))
+                    if (( elapsed >= WAIT_ALL_SSH_SEC )); then
+                      echo "FATAL: ${WAIT_ALL_SSH_SEC}s elapsed and not all K3s nodes accept TCP 22"
+                      exit 1
+                    fi
+                    all=1
+                    for h in $K8S_SSH_HOSTS; do
+                      if ! tcp22_open "$h"; then
+                        all=0
+                        break
+                      fi
+                    done
+                    if (( all == 1 )); then
+                      echo "All K3s nodes accepting TCP 22 after ${elapsed}s"
+                      return 0
+                    fi
+                    echo "Waiting for K3s nodes SSH (${elapsed}s / ${WAIT_ALL_SSH_SEC}s)..."
+                    sleep "$POLL_SEC"
+                  done
+                }
+
+                wait_all_ssh
+                install -d -o cisco -g cisco -m 0755 /home/cisco
+                if [ -d "${CLONE_DIR}/.git" ]; then
+                  echo "Repo exists; updating to origin/${REPO_BRANCH}"
+                  sudo -u cisco git -C "$CLONE_DIR" fetch origin "$REPO_BRANCH" --depth 1
+                  sudo -u cisco git -C "$CLONE_DIR" checkout "$REPO_BRANCH"
+                  sudo -u cisco git -C "$CLONE_DIR" reset --hard "origin/${REPO_BRANCH}"
+                else
+                  n=0
+                  until sudo -u cisco git clone --branch "$REPO_BRANCH" --depth 1 "$REPO_URL" "$CLONE_DIR"; do
+                    n=$((n + 1))
+                    if (( n >= CLONE_RETRY_MAX )); then
+                      echo "FATAL: git clone failed after ${CLONE_RETRY_MAX} attempts"
+                      exit 1
+                    fi
+                    echo "Clone failed; retry in ${CLONE_RETRY_SLEEP}s (${n}/${CLONE_RETRY_MAX})"
+                    sleep "$CLONE_RETRY_SLEEP"
+                  done
+                fi
+
+                cd "${CLONE_DIR}/ansible/flat-k3s"
+                echo "Running ansible-playbook (wall-clock limit ${PLAYBOOK_TIMEOUT_SEC}s)"
+                timeout --preserve-status "$PLAYBOOK_TIMEOUT_SEC" sudo -u cisco env HOME=/home/cisco ansible-playbook site.yml
+          runcmd:
+            - netplan apply
+            - systemctl try-restart systemd-resolved || true
+            - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 update
+            - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 install -y ansible sshpass python3 curl git
+            - /usr/local/bin/mgmt-bootstrap-k3s.sh
+    cpu_limit: null
+    cpus: 2
+    data_volume: null
+    hide_links: false
+    id: n2
+    image_definition: null
+    label: mgmt
+    node_definition: ubuntu
+    parameters: {}
+    ram: 2048
+    tags: []
+    x: 0
+    y: 100
+    interfaces:
+      - id: i0
+        label: ens2
+        slot: 0
+        type: physical
+
+  - boot_disk_size: null
+    configuration:
+      - name: user-data
+        content: |-
+          #cloud-config
+          system_info:
+            default_user:
+              name: cisco
+          password: cisco
+          ssh_pwauth: true
+          chpasswd:
+            expire: false
+          hostname: k8s-cp
+          manage_etc_hosts: false
+          apt:
+            preserve_sources_list: false
+            primary:
+              - arches: [default]
+                uri: http://mirrors.kernel.org/ubuntu
+            security:
+              - arches: [default]
+                uri: http://mirrors.kernel.org/ubuntu
+          write_files:
+            - path: /etc/cloud/cloud.cfg.d/99-lab-disable-cloud-init-network.cfg
+              permissions: "0644"
+              content: |
+                network:
+                  config: disabled
+            - path: /etc/netplan/50-cloud-init.yaml
+              permissions: "0644"
+              content: |
+                network:
+                  version: 2
+                  ethernets:
+                    ens2:
+                      dhcp4: false
+                      dhcp6: false
+                      addresses:
+                        - 198.18.1.11/24
+                      routes:
+                        - to: default
+                          via: 198.18.1.1
+                      nameservers:
+                        addresses:
+                          - 198.18.133.1
+            - path: /etc/hosts
+              append: true
+              content: |
+                # Flat K3s lab
+                198.18.1.10   mgmt
+                198.18.1.11   k8s-cp
+                198.18.1.12   k8s-w1
+                198.18.1.13   k8s-w2
+          runcmd:
+            - netplan apply
+            - systemctl try-restart systemd-resolved || true
+            - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 update
+            - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 install -y python3 curl
+    cpu_limit: null
+    cpus: 2
+    data_volume: null
+    hide_links: false
+    id: n3
+    image_definition: null
+    label: k8s-cp
+    node_definition: ubuntu
+    parameters: {}
+    ram: 4096
+    tags: []
+    x: -220
+    y: 260
+    interfaces:
+      - id: i0
+        label: ens2
+        slot: 0
+        type: physical
+
+  - boot_disk_size: null
+    configuration:
+      - name: user-data
+        content: |-
+          #cloud-config
+          system_info:
+            default_user:
+              name: cisco
+          password: cisco
+          ssh_pwauth: true
+          chpasswd:
+            expire: false
+          hostname: k8s-w1
+          manage_etc_hosts: false
+          apt:
+            preserve_sources_list: false
+            primary:
+              - arches: [default]
+                uri: http://mirrors.kernel.org/ubuntu
+            security:
+              - arches: [default]
+                uri: http://mirrors.kernel.org/ubuntu
+          write_files:
+            - path: /etc/cloud/cloud.cfg.d/99-lab-disable-cloud-init-network.cfg
+              permissions: "0644"
+              content: |
+                network:
+                  config: disabled
+            - path: /etc/netplan/50-cloud-init.yaml
+              permissions: "0644"
+              content: |
+                network:
+                  version: 2
+                  ethernets:
+                    ens2:
+                      dhcp4: false
+                      dhcp6: false
+                      addresses:
+                        - 198.18.1.12/24
+                      routes:
+                        - to: default
+                          via: 198.18.1.1
+                      nameservers:
+                        addresses:
+                          - 198.18.133.1
+            - path: /etc/hosts
+              append: true
+              content: |
+                # Flat K3s lab
+                198.18.1.10   mgmt
+                198.18.1.11   k8s-cp
+                198.18.1.12   k8s-w1
+                198.18.1.13   k8s-w2
+          runcmd:
+            - netplan apply
+            - systemctl try-restart systemd-resolved || true
+            - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 update
+            - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 install -y python3 curl
+    cpu_limit: null
+    cpus: 2
+    data_volume: null
+    hide_links: false
+    id: n4
+    image_definition: null
+    label: k8s-w1
+    node_definition: ubuntu
+    parameters: {}
+    ram: 2048
+    tags: []
+    x: 0
+    y: 260
+    interfaces:
+      - id: i0
+        label: ens2
+        slot: 0
+        type: physical
+
+  - boot_disk_size: null
+    configuration:
+      - name: user-data
+        content: |-
+          #cloud-config
+          system_info:
+            default_user:
+              name: cisco
+          password: cisco
+          ssh_pwauth: true
+          chpasswd:
+            expire: false
+          hostname: k8s-w2
+          manage_etc_hosts: false
+          apt:
+            preserve_sources_list: false
+            primary:
+              - arches: [default]
+                uri: http://mirrors.kernel.org/ubuntu
+            security:
+              - arches: [default]
+                uri: http://mirrors.kernel.org/ubuntu
+          write_files:
+            - path: /etc/cloud/cloud.cfg.d/99-lab-disable-cloud-init-network.cfg
+              permissions: "0644"
+              content: |
+                network:
+                  config: disabled
+            - path: /etc/netplan/50-cloud-init.yaml
+              permissions: "0644"
+              content: |
+                network:
+                  version: 2
+                  ethernets:
+                    ens2:
+                      dhcp4: false
+                      dhcp6: false
+                      addresses:
+                        - 198.18.1.13/24
+                      routes:
+                        - to: default
+                          via: 198.18.1.1
+                      nameservers:
+                        addresses:
+                          - 198.18.133.1
+            - path: /etc/hosts
+              append: true
+              content: |
+                # Flat K3s lab
+                198.18.1.10   mgmt
+                198.18.1.11   k8s-cp
+                198.18.1.12   k8s-w1
+                198.18.1.13   k8s-w2
+          runcmd:
+            - netplan apply
+            - systemctl try-restart systemd-resolved || true
+            - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 update
+            - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 install -y python3 curl
+    cpu_limit: null
+    cpus: 2
+    data_volume: null
+    hide_links: false
+    id: n5
+    image_definition: null
+    label: k8s-w2
+    node_definition: ubuntu
+    parameters: {}
+    ram: 2048
+    tags: []
+    x: 220
+    y: 260
+    interfaces:
+      - id: i0
+        label: ens2
+        slot: 0
+        type: physical
+
+links:
+  - id: l0
+    n1: n0
+    n2: n1
+    i1: i0
+    i2: i0
+    conditioning: {}
+    label: external-port<->lab-sw-port0
+  - id: l1
+    n1: n1
+    n2: n2
+    i1: i1
+    i2: i0
+    conditioning: {}
+    label: lab-sw-port1<->mgmt-ens2
+  - id: l2
+    n1: n1
+    n2: n3
+    i1: i2
+    i2: i0
+    conditioning: {}
+    label: lab-sw-port2<->k8s-cp-ens2
+  - id: l3
+    n1: n1
+    n2: n4
+    i1: i3
+    i2: i0
+    conditioning: {}
+    label: lab-sw-port3<->k8s-w1-ens2
+  - id: l4
+    n1: n1
+    n2: n5
+    i1: i4
+    i2: i0
+    conditioning: {}
+    label: lab-sw-port4<->k8s-w2-ens2
+
+lab:
+  description: >-
+    Flat K3s topology with four Ubuntu nodes on 198.18.1.0/24 through an unmanaged switch and bridge1 external connector.
+    mgmt installs Ansible, clones the latest repository from main, and runs ansible/flat-k3s/site.yml to install one K3s
+    control plane and two workers.
+  notes: >-
+    Start all nodes together or start mgmt after the K3s nodes begin booting. mgmt waits for SSH on 198.18.1.11-13 before
+    running Ansible. All Ubuntu nodes use 198.18.133.1 for DNS and 198.18.1.1 as the default gateway.
+  title: 'Flat K3s Lab'
+  version: 0.1.0

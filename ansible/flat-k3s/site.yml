@@ -1,0 +1,216 @@
+---
+- name: Wait for SSH on K3s nodes from mgmt
+  hosts: k8s_nodes
+  gather_facts: false
+  become: false
+  any_errors_fatal: true
+  tasks:
+    - name: Wait for port 22
+      ansible.builtin.wait_for:
+        host: "{{ ansible_host }}"
+        port: 22
+        delay: 0
+        sleep: 5
+        timeout: 1200
+      delegate_to: localhost
+
+- name: Linux prep for K3s
+  hosts: k8s_nodes
+  become: true
+  tasks:
+    - name: Ensure kernel modules for Kubernetes
+      ansible.builtin.copy:
+        dest: /etc/modules-load.d/k8s.conf
+        content: |
+          overlay
+          br_netfilter
+        mode: "0644"
+
+    - name: Load modules now
+      ansible.builtin.command: modprobe {{ item }}
+      changed_when: true
+      failed_when: false
+      loop:
+        - overlay
+        - br_netfilter
+
+    - name: Sysctl for Kubernetes
+      ansible.builtin.copy:
+        dest: /etc/sysctl.d/99-kubernetes.conf
+        content: |
+          net.bridge.bridge-nf-call-iptables  = 1
+          net.bridge.bridge-nf-call-ip6tables = 1
+          net.ipv4.ip_forward                 = 1
+        mode: "0644"
+
+    - name: Apply sysctl
+      ansible.builtin.command: sysctl -p /etc/sysctl.d/99-kubernetes.conf
+      changed_when: true
+
+    - name: Disable swap
+      ansible.builtin.command: swapoff -a
+      changed_when: true
+      failed_when: false
+
+    - name: Remove swap from fstab
+      ansible.builtin.lineinfile:
+        path: /etc/fstab
+        state: absent
+        regexp: '^[^#]*\sswap\s'
+
+    - name: Wait for apt/dpkg locks to clear
+      ansible.builtin.shell: |
+        end=$((SECONDS + 1200))
+        while [ "$SECONDS" -lt "$end" ]; do
+          held=0
+          if command -v fuser >/dev/null 2>&1; then
+            fuser /var/lib/apt/lists/lock >/dev/null 2>&1 && held=1 || true
+            fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 && held=1 || true
+            fuser /var/lib/dpkg/lock >/dev/null 2>&1 && held=1 || true
+          else
+            pgrep -x apt-get >/dev/null 2>&1 && held=1 || true
+            pgrep -x apt >/dev/null 2>&1 && held=1 || true
+            pgrep -f unattended-upgrade >/dev/null 2>&1 && held=1 || true
+          fi
+          if [ "$held" -eq 0 ]; then
+            exit 0
+          fi
+          sleep 5
+        done
+        echo "Timed out waiting for apt/dpkg locks to clear" >&2
+        exit 1
+      args:
+        executable: /bin/bash
+      changed_when: false
+
+    - name: Install curl for K3s install script
+      ansible.builtin.apt:
+        name: curl
+        state: present
+        update_cache: true
+
+- name: Install K3s server
+  hosts: k8s_control
+  become: true
+  tasks:
+    - name: Install K3s server
+      ansible.builtin.shell: |
+        set -e
+        curl -sfL https://get.k3s.io | sh -s - server \
+          --node-ip={{ ansible_host }} \
+          --tls-san={{ ansible_host }} \
+          --write-kubeconfig-mode=0644 \
+          --kubelet-arg=serialize-image-pulls=true
+      args:
+        creates: /etc/systemd/system/k3s.service
+
+    - name: Enable and start k3s
+      ansible.builtin.systemd:
+        name: k3s
+        enabled: true
+        state: started
+
+- name: Wait for Kubernetes API
+  hosts: localhost
+  gather_facts: false
+  become: false
+  tasks:
+    - name: Wait for 6443 on k8s-cp
+      ansible.builtin.wait_for:
+        host: 198.18.1.11
+        port: 6443
+        timeout: 300
+
+- name: Read K3s join token
+  hosts: k8s_control
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Slurp node token
+      ansible.builtin.slurp:
+        src: /var/lib/rancher/k3s/server/node-token
+      register: k3s_token_slurp
+
+    - name: Publish token as host fact for workers
+      ansible.builtin.set_fact:
+        k3s_join_token: "{{ k3s_token_slurp.content | b64decode | trim }}"
+
+- name: Join K3s agents
+  hosts: k8s_workers
+  become: true
+  vars:
+    k3s_join_token: "{{ hostvars['k8s-cp']['k3s_join_token'] }}"
+  tasks:
+    - name: Install K3s agent
+      ansible.builtin.shell: |
+        set -e
+        curl -sfL https://get.k3s.io | K3S_URL=https://{{ k3s_cp_api_ip }}:6443 K3S_TOKEN="{{ k3s_join_token }}" sh -s - agent \
+          --node-ip={{ ansible_host }} \
+          --kubelet-arg=serialize-image-pulls=true
+      args:
+        creates: /etc/systemd/system/k3s-agent.service
+
+    - name: Enable and start k3s-agent
+      ansible.builtin.systemd:
+        name: k3s-agent
+        enabled: true
+        state: started
+
+- name: Fetch kubeconfig and validate on mgmt
+  hosts: localhost
+  gather_facts: false
+  become: false
+  vars:
+    kube_dir: /home/cisco/.kube
+  tasks:
+    - name: Detect architecture for kubectl
+      ansible.builtin.command: uname -m
+      register: mgmt_uname_m
+      changed_when: false
+
+    - name: Set kubectl download arch
+      ansible.builtin.set_fact:
+        kubectl_dl_arch: "{{ 'arm64' if mgmt_uname_m.stdout in ['aarch64', 'arm64'] else 'amd64' }}"
+
+    - name: Fetch kubectl stable version
+      ansible.builtin.uri:
+        url: https://dl.k8s.io/release/stable.txt
+        return_content: true
+      register: kubectl_stable_ver
+
+    - name: Install kubectl
+      ansible.builtin.get_url:
+        url: "https://dl.k8s.io/release/{{ kubectl_stable_ver.content | trim }}/bin/linux/{{ kubectl_dl_arch }}/kubectl"
+        dest: /usr/local/bin/kubectl
+        mode: "0755"
+      become: true
+
+    - name: Ensure kubeconfig directory
+      ansible.builtin.file:
+        path: "{{ kube_dir }}"
+        state: directory
+        mode: "0700"
+
+    - name: Slurp kubeconfig from control plane
+      ansible.builtin.slurp:
+        src: /etc/rancher/k3s/k3s.yaml
+      delegate_to: k8s-cp
+      become: true
+      register: kubeconfig
+
+    - name: Write kubeconfig on mgmt
+      ansible.builtin.copy:
+        dest: "{{ kube_dir }}/config"
+        content: "{{ kubeconfig.content | b64decode | replace('127.0.0.1', '198.18.1.11') }}"
+        mode: "0600"
+
+    - name: Validate K3s nodes
+      ansible.builtin.command: kubectl get nodes
+      environment:
+        KUBECONFIG: "{{ kube_dir }}/config"
+      register: k3s_nodes
+      changed_when: false
+
+    - name: Show K3s nodes
+      ansible.builtin.debug:
+        var: k3s_nodes.stdout_lines
