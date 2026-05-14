@@ -504,5 +504,6 @@ lab:
     running Ansible. All Ubuntu nodes use 198.18.133.1 for DNS and 198.18.1.1 as the default gateway. K3s starts with
     flannel, the bundled network policy controller, and kube-proxy disabled so Cilium can provide the CNI and kube-proxy replacement.
     Cilium uses a tunneled cluster-pool overlay from 10.200.0.0/16 so pod addresses do not collide with the host network.
+    Hubble, Hubble Relay, and Hubble UI are enabled by the Cilium Helm values.
   title: 'Flat K3s Cilium Lab'
   version: 0.1.0
