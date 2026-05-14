@@ -267,6 +267,8 @@
               enabled: true
             ui:
               enabled: true
+              service:
+                type: LoadBalancer
 
     - name: Reconcile Cilium Helm release
       ansible.builtin.command:
