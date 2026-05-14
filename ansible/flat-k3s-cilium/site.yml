@@ -266,9 +266,11 @@
             relay:
               enabled: true
             ui:
+              ingress:
+                enabled:
               enabled: true
-              service:
-                type: LoadBalancer
+              # service:
+              #   type: LoadBalancer
 
     - name: Reconcile Cilium Helm release
       ansible.builtin.command:
