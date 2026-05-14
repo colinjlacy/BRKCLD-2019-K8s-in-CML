@@ -208,7 +208,7 @@ nodes:
             - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 install -y ansible sshpass python3 curl git
             - /usr/local/bin/mgmt-bootstrap-k3s.sh
     cpu_limit: null
-    cpus: 2
+    cpus: 4
     data_volume: null
     hide_links: false
     id: n2
@@ -216,7 +216,7 @@ nodes:
     label: mgmt
     node_definition: ubuntu
     parameters: {}
-    ram: 2048
+    ram: 8192
     tags: []
     x: 0
     y: 100
@@ -285,7 +285,7 @@ nodes:
             - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 update
             - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 install -y python3 curl
     cpu_limit: null
-    cpus: 2
+    cpus: 4
     data_volume: null
     hide_links: false
     id: n3
@@ -293,7 +293,7 @@ nodes:
     label: k8s-cp
     node_definition: ubuntu
     parameters: {}
-    ram: 4096
+    ram: 8192
     tags: []
     x: -220
     y: 260
@@ -362,7 +362,7 @@ nodes:
             - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 update
             - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 install -y python3 curl
     cpu_limit: null
-    cpus: 2
+    cpus: 4
     data_volume: null
     hide_links: false
     id: n4
@@ -370,7 +370,7 @@ nodes:
     label: k8s-w1
     node_definition: ubuntu
     parameters: {}
-    ram: 2048
+    ram: 8192
     tags: []
     x: 0
     y: 260
@@ -439,7 +439,7 @@ nodes:
             - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 update
             - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 install -y python3 curl
     cpu_limit: null
-    cpus: 2
+    cpus: 4
     data_volume: null
     hide_links: false
     id: n5
@@ -447,7 +447,7 @@ nodes:
     label: k8s-w2
     node_definition: ubuntu
     parameters: {}
-    ram: 2048
+    ram: 8192
     tags: []
     x: 220
     y: 260
