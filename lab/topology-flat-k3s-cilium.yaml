@@ -505,5 +505,6 @@ lab:
     flannel, the bundled network policy controller, and kube-proxy disabled so Cilium can provide the CNI and kube-proxy replacement.
     Cilium uses a tunneled cluster-pool overlay from 10.200.0.0/16 so pod addresses do not collide with the host network.
     Hubble, Hubble Relay, and Hubble UI are enabled by the Cilium Helm values.
+    Cilium BGP control plane peers with the lab router at 198.18.1.29 using peer ASN 65001 and advertises PodCIDRs plus LoadBalancer IPs.
   title: 'Flat K3s Cilium Lab'
   version: 0.1.0

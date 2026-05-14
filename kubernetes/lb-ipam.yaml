@@ -6,4 +6,4 @@ metadata:
 spec:
   blocks:
     - start: "198.18.1.24"
-      stop: "198.18.1.29"
+      stop: "198.18.1.28"

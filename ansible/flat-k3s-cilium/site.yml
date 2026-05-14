@@ -233,6 +233,7 @@
   vars:
     kube_cfg: /home/cisco/.kube/config
     cilium_values_file: /tmp/cilium-values.yaml
+    cilium_bgp_resources_file: /tmp/cilium-bgp-control-plane.yaml
   tasks:
     - name: Add and update Cilium Helm repo
       ansible.builtin.shell: |
@@ -259,6 +260,8 @@
           routingMode: tunnel
           tunnelProtocol: vxlan
           autoDirectNodeRoutes: false
+          bgpControlPlane:
+            enabled: true
           k8sServiceHost: {{ hostvars['k8s-cp'].k3s_cp_api_ip }}
           k8sServicePort: 6443
           hubble:
@@ -291,10 +294,103 @@
       environment:
         KUBECONFIG: "{{ kube_cfg }}"
 
+    - name: Write Cilium BGP control plane resources
+      ansible.builtin.copy:
+        dest: "{{ cilium_bgp_resources_file }}"
+        mode: "0644"
+        content: |
+          apiVersion: cilium.io/v2alpha1
+          kind: CiliumLoadBalancerIPPool
+          metadata:
+            name: lb-pool
+          spec:
+            blocks:
+              - start: "{{ cilium_lb_pool_start }}"
+                stop: "{{ cilium_lb_pool_stop }}"
+          ---
+          apiVersion: cilium.io/v2
+          kind: CiliumBGPPeerConfig
+          metadata:
+            name: lab-router-peer
+          spec:
+            families:
+              - afi: ipv4
+                safi: unicast
+                advertisements:
+                  matchLabels:
+                    advertise: bgp
+          ---
+          apiVersion: cilium.io/v2
+          kind: CiliumBGPClusterConfig
+          metadata:
+            name: lab-router
+          spec:
+            nodeSelector:
+              matchExpressions:
+                - key: kubernetes.io/hostname
+                  operator: Exists
+            bgpInstances:
+              - name: instance-{{ cilium_bgp_local_asn }}
+                localASN: {{ cilium_bgp_local_asn }}
+                peers:
+                  - name: lab-router
+                    peerASN: {{ cilium_bgp_peer_asn }}
+                    peerAddress: {{ cilium_bgp_peer_address }}
+                    peerConfigRef:
+                      name: lab-router-peer
+          ---
+          apiVersion: cilium.io/v2
+          kind: CiliumBGPAdvertisement
+          metadata:
+            name: lab-advertisements
+            labels:
+              advertise: bgp
+          spec:
+            advertisements:
+              - advertisementType: PodCIDR
+              - advertisementType: Service
+                service:
+                  addresses:
+                    - LoadBalancerIP
+                selector:
+                  matchExpressions:
+                    - key: somekey
+                      operator: NotIn
+                      values:
+                        - never-used-value
+
+    - name: Apply Cilium BGP control plane resources
+      ansible.builtin.command: kubectl apply -f "{{ cilium_bgp_resources_file }}"
+      environment:
+        KUBECONFIG: "{{ kube_cfg }}"
+      register: cilium_bgp_apply
+      changed_when: "'created' in cilium_bgp_apply.stdout or 'configured' in cilium_bgp_apply.stdout"
+
     - name: Wait for Cilium DaemonSet ready
       ansible.builtin.command: kubectl rollout status daemonset/cilium -n kube-system --timeout=1800s
       environment:
         KUBECONFIG: "{{ kube_cfg }}"
+
+    - name: Wait for Hubble Relay ready
+      ansible.builtin.command: kubectl rollout status deployment/hubble-relay -n kube-system --timeout=1800s
+      environment:
+        KUBECONFIG: "{{ kube_cfg }}"
+
+    - name: Wait for Hubble UI ready
+      ansible.builtin.command: kubectl rollout status deployment/hubble-ui -n kube-system --timeout=1800s
+      environment:
+        KUBECONFIG: "{{ kube_cfg }}"
+
+    - name: Show Cilium BGP control plane resources
+      ansible.builtin.command: kubectl get ciliumbgpclusterconfigs,ciliumbgppeerconfigs,ciliumbgpadvertisements
+      environment:
+        KUBECONFIG: "{{ kube_cfg }}"
+      register: cilium_bgp_resources
+      changed_when: false
+
+    - name: Display Cilium BGP control plane resources
+      ansible.builtin.debug:
+        var: cilium_bgp_resources.stdout_lines
 
     - name: Validate K3s nodes
       ansible.builtin.command: kubectl get nodes
