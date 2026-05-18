@@ -403,7 +403,7 @@ nodes:
                 
                 cd "${CLONE_DIR}/ansible/csr-multicluster-k3s-cilium"
                 echo "Running ansible-playbook (wall-clock limit ${PLAYBOOK_TIMEOUT_SEC}s)"
-                timeout --preserve-status "$PLAYBOOK_TIMEOUT_SEC" sudo -u cisco env HOME=/home/cisco ansible-playbook site.yml
+                timeout --preserve-status "$PLAYBOOK_TIMEOUT_SEC" sudo -u cisco env HOME=/home/cisco ansible-playbook site.yml -i inventory.ini 2>&1 | tee ansible-run.log
           runcmd:
             - netplan apply
             - systemctl try-restart systemd-resolved || true

@@ -396,10 +396,19 @@
           - --create-namespace
           - --values
           - "{{ cilium_values_file }}"
-          - --wait
-          - --timeout=1800s
       environment:
         KUBECONFIG: "{{ kube_cfg }}"
+      delegate_to: localhost
+
+    - name: Wait for Cilium CRDs needed by lab resources
+      ansible.builtin.command: kubectl wait --for=condition=Established --timeout=300s crd/{{ item }}
+      environment:
+        KUBECONFIG: "{{ kube_cfg }}"
+      loop:
+        - ciliumloadbalancerippools.cilium.io
+        - ciliumbgpclusterconfigs.cilium.io
+        - ciliumbgppeerconfigs.cilium.io
+        - ciliumbgpadvertisements.cilium.io
       delegate_to: localhost
 
     - name: Write Cilium BGP control plane resources
