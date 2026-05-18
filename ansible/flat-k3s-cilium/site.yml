@@ -226,6 +226,39 @@
       args:
         creates: /usr/local/bin/helm
 
+- name: Install Cilium CLI on mgmt
+  hosts: localhost
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Detect architecture for Cilium CLI
+      ansible.builtin.command: uname -m
+      register: cilium_uname_m
+      changed_when: false
+
+    - name: Set Cilium CLI download arch
+      ansible.builtin.set_fact:
+        cilium_cli_arch: "{{ 'arm64' if cilium_uname_m.stdout in ['aarch64', 'arm64'] else 'amd64' }}"
+
+    - name: Fetch latest Cilium CLI version
+      ansible.builtin.uri:
+        url: https://raw.githubusercontent.com/cilium/cilium-cli/main/stable.txt
+        return_content: true
+      register: cilium_cli_version
+
+    - name: Download Cilium CLI tarball
+      ansible.builtin.get_url:
+        url: "https://github.com/cilium/cilium-cli/releases/download/{{ cilium_cli_version.content | trim }}/cilium-linux-{{ cilium_cli_arch }}.tar.gz"
+        dest: "/tmp/cilium-cli-{{ cilium_cli_version.content | trim }}.tar.gz"
+        mode: "0644"
+
+    - name: Install Cilium CLI to /usr/local/bin
+      ansible.builtin.unarchive:
+        src: "/tmp/cilium-cli-{{ cilium_cli_version.content | trim }}.tar.gz"
+        dest: /usr/local/bin
+        remote_src: true
+        creates: /usr/local/bin/cilium
+
 - name: Install Cilium with Helm
   hosts: localhost
   gather_facts: false
@@ -288,11 +321,14 @@
           - --create-namespace
           - --values
           - "{{ cilium_values_file }}"
-          - --atomic
-          - --wait
-          - --timeout=1800s
       environment:
         KUBECONFIG: "{{ kube_cfg }}"
+
+    - name: Wait for Cilium to be ready
+      ansible.builtin.command: cilium status --wait
+      environment:
+        KUBECONFIG: "{{ kube_cfg }}"
+      changed_when: false
 
     - name: Write Cilium BGP control plane resources
       ansible.builtin.copy:
@@ -365,21 +401,6 @@
         KUBECONFIG: "{{ kube_cfg }}"
       register: cilium_bgp_apply
       changed_when: "'created' in cilium_bgp_apply.stdout or 'configured' in cilium_bgp_apply.stdout"
-
-    - name: Wait for Cilium DaemonSet ready
-      ansible.builtin.command: kubectl rollout status daemonset/cilium -n kube-system --timeout=1800s
-      environment:
-        KUBECONFIG: "{{ kube_cfg }}"
-
-    - name: Wait for Hubble Relay ready
-      ansible.builtin.command: kubectl rollout status deployment/hubble-relay -n kube-system --timeout=1800s
-      environment:
-        KUBECONFIG: "{{ kube_cfg }}"
-
-    - name: Wait for Hubble UI ready
-      ansible.builtin.command: kubectl rollout status deployment/hubble-ui -n kube-system --timeout=1800s
-      environment:
-        KUBECONFIG: "{{ kube_cfg }}"
 
     - name: Show Cilium BGP control plane resources
       ansible.builtin.command: kubectl get ciliumbgpclusterconfigs,ciliumbgppeerconfigs,ciliumbgpadvertisements
