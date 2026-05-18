@@ -106,6 +106,7 @@
           --node-ip={{ ansible_host }} \
           --tls-san={{ ansible_host }} \
           --write-kubeconfig-mode=0644 \
+          --embedded-registry \
           --kubelet-arg=serialize-image-pulls=true
       args:
         creates: /etc/systemd/system/k3s.service
@@ -158,6 +159,7 @@
         set -e
         curl -sfL https://get.k3s.io | K3S_URL=https://{{ k3s_cp_api_ip }}:6443 K3S_TOKEN="{{ k3s_join_token }}" sh -s - agent \
           --node-ip={{ ansible_host }} \
+          --embedded-registry \
           --kubelet-arg=serialize-image-pulls=true
       args:
         creates: /etc/systemd/system/k3s-agent.service
@@ -297,6 +299,39 @@
               service:
                 type: LoadBalancer
       delegate_to: localhost
+
+    - name: Render Cilium chart and collect exact Cilium image references
+      ansible.builtin.shell: |
+        set -euo pipefail
+        helm template cilium cilium/cilium \
+          --version "{{ cilium_helm_chart_version }}" \
+          --namespace kube-system \
+          --values "{{ cilium_values_file }}" |
+          awk '/image:/ { gsub(/"/, "", $2); print $2 }' |
+          grep -E 'quay.io/cilium/(cilium|cilium-envoy|operator)' |
+          sort -u
+      args:
+        executable: /bin/bash
+      register: cilium_prepull_images
+      changed_when: false
+      delegate_to: localhost
+
+    - name: Show Cilium images selected for pre-pull
+      ansible.builtin.debug:
+        var: cilium_prepull_images.stdout_lines
+
+    - name: Pre-pull Cilium images on control plane with K3s containerd
+      ansible.builtin.command:
+        argv:
+          - /usr/local/bin/k3s
+          - ctr
+          - --namespace
+          - k8s.io
+          - images
+          - pull
+          - "{{ item }}"
+      become: true
+      loop: "{{ cilium_prepull_images.stdout_lines }}"
 
     - name: Reconcile Cilium Helm release
       ansible.builtin.command:
