@@ -154,12 +154,28 @@
   vars:
     k3s_join_token: "{{ hostvars['k8s-a-cp']['k3s_join_token'] if inventory_hostname in groups['k8s_a_workers'] else hostvars['k8s-b-cp']['k3s_join_token'] }}"
   tasks:
+    - name: Remove unsupported embedded registry flag from existing agents
+      ansible.builtin.shell: |
+        set -e
+        changed=0
+        for f in /etc/systemd/system/k3s-agent.service /etc/systemd/system/k3s-agent.service.env; do
+          if [ -f "$f" ] && grep -q -- '--embedded-registry' "$f"; then
+            sed -i '/--embedded-registry/d' "$f"
+            changed=1
+          fi
+        done
+        if [ "$changed" -eq 1 ]; then
+          systemctl daemon-reload
+          echo changed
+        fi
+      register: k3s_agent_embedded_registry_repair
+      changed_when: "'changed' in k3s_agent_embedded_registry_repair.stdout"
+
     - name: Install K3s agent
       ansible.builtin.shell: |
         set -e
         curl -sfL https://get.k3s.io | K3S_URL=https://{{ k3s_cp_api_ip }}:6443 K3S_TOKEN="{{ k3s_join_token }}" sh -s - agent \
           --node-ip={{ ansible_host }} \
-          --embedded-registry \
           --kubelet-arg=serialize-image-pulls=true
       args:
         creates: /etc/systemd/system/k3s-agent.service
