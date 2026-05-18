@@ -89,6 +89,28 @@
         state: present
         update_cache: true
 
+    - name: Ensure K3s config directory exists
+      ansible.builtin.file:
+        path: /etc/rancher/k3s
+        state: directory
+        mode: "0755"
+
+    - name: Enable K3s distributed mirroring for all registries
+      ansible.builtin.copy:
+        dest: /etc/rancher/k3s/registries.yaml
+        content: |
+          mirrors:
+            "*":
+        mode: "0644"
+      register: k3s_registries_yaml
+
+    - name: Restart K3s services when registry mirror config changes
+      ansible.builtin.shell: |
+        systemctl try-restart k3s || true
+        systemctl try-restart k3s-agent || true
+      changed_when: true
+      when: k3s_registries_yaml.changed
+
 - name: Install K3s servers for Cilium
   hosts: k8s_control
   become: true
@@ -349,6 +371,16 @@
       become: true
       loop: "{{ cilium_prepull_images.stdout_lines }}"
 
+    - name: Verify pre-pulled Cilium images are in K3s containerd
+      ansible.builtin.shell: |
+        set -euo pipefail
+        /usr/local/bin/k3s ctr --namespace k8s.io images ls | grep -F "{{ item }}"
+      args:
+        executable: /bin/bash
+      become: true
+      changed_when: false
+      loop: "{{ cilium_prepull_images.stdout_lines }}"
+
     - name: Reconcile Cilium Helm release
       ansible.builtin.command:
         argv:
@@ -364,7 +396,6 @@
           - --create-namespace
           - --values
           - "{{ cilium_values_file }}"
-          - --atomic
           - --wait
           - --timeout=1800s
       environment:
