@@ -1,0 +1,630 @@
+# Cisco Modeling Labs (CML) 2.x Lab Topology
+# Nexus-segmented K3s + Cilium lab: one NX-OS fabric node segments management, control-plane, database, and public workload VLANs.
+
+annotations: []
+nodes:
+  - boot_disk_size: null
+    configuration:
+      - name: default
+        content: bridge1
+    cpu_limit: null
+    cpus: null
+    data_volume: null
+    hide_links: false
+    id: n0
+    image_definition: null
+    label: external
+    node_definition: external_connector
+    parameters: {}
+    ram: null
+    tags: []
+    x: -420
+    y: -120
+    interfaces:
+      - id: i0
+        label: port
+        slot: 0
+        type: physical
+  - boot_disk_size: null
+    configuration:
+      - name: nxos_config.txt
+        content: |-
+          hostname n9k-fabric
+          feature interface-vlan
+          feature ssh
+          ip routing
+          vlan 10
+            name MGMT
+          vlan 30
+            name K8S_CONTROL_PLANE
+          vlan 40
+            name DATABASE
+          vlan 198
+            name PUBLIC_WORKLOAD
+          interface Vlan10
+            description MGMT default gateway
+            no shutdown
+            ip address 10.10.10.1/24
+          interface Vlan30
+            description K8S control-plane default gateway
+            no shutdown
+            ip address 10.10.30.1/24
+          interface Vlan40
+            description Database default gateway
+            no shutdown
+            ip address 10.10.40.1/24
+          interface Vlan198
+            description Public worker and LoadBalancer gateway
+            no shutdown
+            ip address 198.18.1.254/24
+          ip route 0.0.0.0/0 198.18.1.1
+          ip access-list ACL-EXT-IN
+            10 remark Permit return traffic for lab-initiated package and image downloads
+            11 permit tcp any 10.10.10.0/24 established
+            12 permit tcp any 10.10.30.0/24 established
+            13 permit tcp any 10.10.40.0/24 established
+            14 permit udp any eq domain 10.10.10.0/24
+            15 permit udp any eq domain 10.10.30.0/24
+            16 permit udp any eq domain 10.10.40.0/24
+            20 remark External connector must not initiate access to protected segments
+            30 deny ip any 10.10.10.0/24
+            40 deny ip any 10.10.30.0/24
+            50 deny ip any 10.10.40.0/24
+            90 permit ip any any
+          ip access-list ACL-WORKER-IN
+            10 remark Worker ports may reach the API, Cilium VXLAN, and database service
+            20 permit tcp any host 10.10.30.10 eq 6443
+            30 permit udp any host 10.10.30.10 eq 8472
+            40 permit tcp any host 10.10.40.10 eq 5432
+            50 permit icmp any 10.10.30.0/24
+            60 permit icmp any 10.10.40.0/24
+            70 deny ip any 10.10.10.0/24
+            80 deny ip any 10.10.30.0/24
+            90 deny ip any 10.10.40.0/24
+            100 permit ip any any
+          ip access-list ACL-MGMT-IN
+            10 remark Management node may administer lab nodes
+            20 permit tcp any 198.18.1.0/24 eq 22
+            30 permit tcp any host 10.10.30.10 eq 22
+            40 permit tcp any host 10.10.30.10 eq 6443
+            50 permit tcp any host 10.10.40.10 eq 22
+            60 permit tcp any host 10.10.40.10 eq 5432
+            70 permit icmp any any
+            90 permit ip any any
+          interface Ethernet1/1
+            description external_connector
+            switchport
+            switchport mode access
+            switchport access vlan 198
+            spanning-tree port type edge
+            ip port access-group ACL-EXT-IN in
+            no shutdown
+          interface Ethernet1/2
+            description jump-1
+            switchport
+            switchport mode access
+            switchport access vlan 10
+            spanning-tree port type edge
+            ip port access-group ACL-MGMT-IN in
+            no shutdown
+          interface Ethernet1/3
+            description k8s-cp
+            switchport
+            switchport mode access
+            switchport access vlan 30
+            spanning-tree port type edge
+            no shutdown
+          interface Ethernet1/4
+            description k8s-w1
+            switchport
+            switchport mode access
+            switchport access vlan 198
+            spanning-tree port type edge
+            ip port access-group ACL-WORKER-IN in
+            no shutdown
+          interface Ethernet1/5
+            description k8s-w2
+            switchport
+            switchport mode access
+            switchport access vlan 198
+            spanning-tree port type edge
+            ip port access-group ACL-WORKER-IN in
+            no shutdown
+          interface Ethernet1/6
+            description postgres-1
+            switchport
+            switchport mode access
+            switchport access vlan 40
+            spanning-tree port type edge
+            no shutdown
+          interface Ethernet1/7
+            description future-k3s-worker
+            switchport
+            switchport mode access
+            switchport access vlan 198
+            spanning-tree port type edge
+            ip port access-group ACL-WORKER-IN in
+            shutdown
+          interface Ethernet1/8
+            description future-k3s-worker
+            switchport
+            switchport mode access
+            switchport access vlan 198
+            spanning-tree port type edge
+            ip port access-group ACL-WORKER-IN in
+            shutdown
+    cpu_limit: null
+    cpus: 4
+    data_volume: null
+    hide_links: false
+    id: n1
+    image_definition: null
+    label: n9k-fabric
+    node_definition: nxosv9000
+    parameters: {}
+    ram: 8192
+    tags: []
+    x: -180
+    y: -120
+    interfaces:
+      - id: i0
+        label: mgmt0
+        type: physical
+      - id: i1
+        label: Ethernet1/1
+        slot: 0
+        type: physical
+      - id: i2
+        label: Ethernet1/2
+        slot: 1
+        type: physical
+      - id: i3
+        label: Ethernet1/3
+        slot: 2
+        type: physical
+      - id: i4
+        label: Ethernet1/4
+        slot: 3
+        type: physical
+      - id: i5
+        label: Ethernet1/5
+        slot: 4
+        type: physical
+      - id: i6
+        label: Ethernet1/6
+        slot: 5
+        type: physical
+      - id: i7
+        label: Ethernet1/7
+        slot: 6
+        type: physical
+      - id: i8
+        label: Ethernet1/8
+        slot: 7
+        type: physical
+  - boot_disk_size: null
+    configuration:
+      - name: user-data
+        content: |-
+          #cloud-config
+          system_info:
+            default_user:
+              name: cisco
+          hostname: jump-1
+          manage_etc_hosts: false
+          apt:
+            preserve_sources_list: false
+            primary:
+              - arches: [default]
+                uri: http://mirrors.kernel.org/ubuntu
+            security:
+              - arches: [default]
+                uri: http://mirrors.kernel.org/ubuntu
+          write_files:
+            - path: /etc/cloud/cloud.cfg.d/99-lab-disable-cloud-init-network.cfg
+              permissions: "0644"
+              content: |
+                network:
+                  config: disabled
+            - path: /etc/netplan/50-cloud-init.yaml
+              permissions: "0644"
+              content: |
+                network:
+                  version: 2
+                  ethernets:
+                    ens2:
+                      dhcp4: false
+                      dhcp6: false
+                      addresses:
+                        - 10.10.10.10/24
+                      routes:
+                        - to: default
+                          via: 10.10.10.1
+                      nameservers:
+                        addresses:
+                          - 198.18.133.1
+                          - 1.1.1.1
+            - path: /etc/hosts
+              append: true
+              content: |
+                # Nexus segmented K3s + Cilium lab
+                10.10.10.10   jump-1
+                10.10.30.10   k8s-cp
+                198.18.1.21   k8s-w1
+                198.18.1.22   k8s-w2
+                10.10.40.10   postgres-1
+          runcmd:
+            - netplan apply
+            - systemctl try-restart systemd-resolved || true
+            - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 update
+            - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 install -y ansible git curl jq openssh-client python3 python3-pip sshpass
+    cpu_limit: null
+    cpus: 2
+    data_volume: null
+    hide_links: false
+    id: n2
+    image_definition: null
+    label: jump-1
+    node_definition: ubuntu
+    parameters: {}
+    ram: 4096
+    tags: []
+    x: 120
+    y: -260
+    interfaces:
+      - id: i0
+        label: ens2
+        slot: 0
+        type: physical
+  - boot_disk_size: null
+    configuration:
+      - name: user-data
+        content: |-
+          #cloud-config
+          system_info:
+            default_user:
+              name: cisco
+          hostname: k8s-cp
+          manage_etc_hosts: false
+          apt:
+            preserve_sources_list: false
+            primary:
+              - arches: [default]
+                uri: http://mirrors.kernel.org/ubuntu
+            security:
+              - arches: [default]
+                uri: http://mirrors.kernel.org/ubuntu
+          write_files:
+            - path: /etc/cloud/cloud.cfg.d/99-lab-disable-cloud-init-network.cfg
+              permissions: "0644"
+              content: |
+                network:
+                  config: disabled
+            - path: /etc/netplan/50-cloud-init.yaml
+              permissions: "0644"
+              content: |
+                network:
+                  version: 2
+                  ethernets:
+                    ens2:
+                      dhcp4: false
+                      dhcp6: false
+                      addresses:
+                        - 10.10.30.10/24
+                      routes:
+                        - to: default
+                          via: 10.10.30.1
+                      nameservers:
+                        addresses:
+                          - 198.18.133.1
+                          - 1.1.1.1
+            - path: /etc/hosts
+              append: true
+              content: |
+                # Nexus segmented K3s + Cilium lab
+                10.10.10.10   jump-1
+                10.10.30.10   k8s-cp
+                198.18.1.21   k8s-w1
+                198.18.1.22   k8s-w2
+                10.10.40.10   postgres-1
+          runcmd:
+            - netplan apply
+            - systemctl try-restart systemd-resolved || true
+            - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 update
+            - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 install -y python3 curl
+    cpu_limit: null
+    cpus: 4
+    data_volume: null
+    hide_links: false
+    id: n3
+    image_definition: null
+    label: k8s-cp
+    node_definition: ubuntu
+    parameters: {}
+    ram: 8192
+    tags: []
+    x: 120
+    y: -80
+    interfaces:
+      - id: i0
+        label: ens2
+        slot: 0
+        type: physical
+  - boot_disk_size: null
+    configuration:
+      - name: user-data
+        content: |-
+          #cloud-config
+          system_info:
+            default_user:
+              name: cisco
+          hostname: k8s-w1
+          manage_etc_hosts: false
+          apt:
+            preserve_sources_list: false
+            primary:
+              - arches: [default]
+                uri: http://mirrors.kernel.org/ubuntu
+            security:
+              - arches: [default]
+                uri: http://mirrors.kernel.org/ubuntu
+          write_files:
+            - path: /etc/cloud/cloud.cfg.d/99-lab-disable-cloud-init-network.cfg
+              permissions: "0644"
+              content: |
+                network:
+                  config: disabled
+            - path: /etc/netplan/50-cloud-init.yaml
+              permissions: "0644"
+              content: |
+                network:
+                  version: 2
+                  ethernets:
+                    ens2:
+                      dhcp4: false
+                      dhcp6: false
+                      addresses:
+                        - 198.18.1.21/24
+                      routes:
+                        - to: default
+                          via: 198.18.1.254
+                      nameservers:
+                        addresses:
+                          - 198.18.133.1
+                          - 1.1.1.1
+            - path: /etc/hosts
+              append: true
+              content: |
+                # Nexus segmented K3s + Cilium lab
+                10.10.10.10   jump-1
+                10.10.30.10   k8s-cp
+                198.18.1.21   k8s-w1
+                198.18.1.22   k8s-w2
+                10.10.40.10   postgres-1
+          runcmd:
+            - netplan apply
+            - systemctl try-restart systemd-resolved || true
+            - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 update
+            - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 install -y python3 curl
+    cpu_limit: null
+    cpus: 4
+    data_volume: null
+    hide_links: false
+    id: n4
+    image_definition: null
+    label: k8s-w1
+    node_definition: ubuntu
+    parameters: {}
+    ram: 8192
+    tags: []
+    x: 120
+    y: 100
+    interfaces:
+      - id: i0
+        label: ens2
+        slot: 0
+        type: physical
+  - boot_disk_size: null
+    configuration:
+      - name: user-data
+        content: |-
+          #cloud-config
+          system_info:
+            default_user:
+              name: cisco
+          hostname: k8s-w2
+          manage_etc_hosts: false
+          apt:
+            preserve_sources_list: false
+            primary:
+              - arches: [default]
+                uri: http://mirrors.kernel.org/ubuntu
+            security:
+              - arches: [default]
+                uri: http://mirrors.kernel.org/ubuntu
+          write_files:
+            - path: /etc/cloud/cloud.cfg.d/99-lab-disable-cloud-init-network.cfg
+              permissions: "0644"
+              content: |
+                network:
+                  config: disabled
+            - path: /etc/netplan/50-cloud-init.yaml
+              permissions: "0644"
+              content: |
+                network:
+                  version: 2
+                  ethernets:
+                    ens2:
+                      dhcp4: false
+                      dhcp6: false
+                      addresses:
+                        - 198.18.1.22/24
+                      routes:
+                        - to: default
+                          via: 198.18.1.254
+                      nameservers:
+                        addresses:
+                          - 198.18.133.1
+                          - 1.1.1.1
+            - path: /etc/hosts
+              append: true
+              content: |
+                # Nexus segmented K3s + Cilium lab
+                10.10.10.10   jump-1
+                10.10.30.10   k8s-cp
+                198.18.1.21   k8s-w1
+                198.18.1.22   k8s-w2
+                10.10.40.10   postgres-1
+          runcmd:
+            - netplan apply
+            - systemctl try-restart systemd-resolved || true
+            - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 update
+            - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 install -y python3 curl
+    cpu_limit: null
+    cpus: 4
+    data_volume: null
+    hide_links: false
+    id: n5
+    image_definition: null
+    label: k8s-w2
+    node_definition: ubuntu
+    parameters: {}
+    ram: 8192
+    tags: []
+    x: 120
+    y: 260
+    interfaces:
+      - id: i0
+        label: ens2
+        slot: 0
+        type: physical
+  - boot_disk_size: null
+    configuration:
+      - name: user-data
+        content: |-
+          #cloud-config
+          system_info:
+            default_user:
+              name: cisco
+          hostname: postgres-1
+          manage_etc_hosts: false
+          apt:
+            preserve_sources_list: false
+            primary:
+              - arches: [default]
+                uri: http://mirrors.kernel.org/ubuntu
+            security:
+              - arches: [default]
+                uri: http://mirrors.kernel.org/ubuntu
+          write_files:
+            - path: /etc/cloud/cloud.cfg.d/99-lab-disable-cloud-init-network.cfg
+              permissions: "0644"
+              content: |
+                network:
+                  config: disabled
+            - path: /etc/netplan/50-cloud-init.yaml
+              permissions: "0644"
+              content: |
+                network:
+                  version: 2
+                  ethernets:
+                    ens2:
+                      dhcp4: false
+                      dhcp6: false
+                      addresses:
+                        - 10.10.40.10/24
+                      routes:
+                        - to: default
+                          via: 10.10.40.1
+                      nameservers:
+                        addresses:
+                          - 198.18.133.1
+                          - 1.1.1.1
+            - path: /etc/hosts
+              append: true
+              content: |
+                # Nexus segmented K3s + Cilium lab
+                10.10.10.10   jump-1
+                10.10.30.10   k8s-cp
+                198.18.1.21   k8s-w1
+                198.18.1.22   k8s-w2
+                10.10.40.10   postgres-1
+          runcmd:
+            - netplan apply
+            - systemctl try-restart systemd-resolved || true
+            - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 update
+            - DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 install -y python3 curl
+    cpu_limit: null
+    cpus: 2
+    data_volume: 512
+    hide_links: false
+    id: n6
+    image_definition: null
+    label: postgres-1
+    node_definition: ubuntu
+    parameters: {}
+    ram: 4096
+    tags: []
+    x: 120
+    y: 420
+    interfaces:
+      - id: i0
+        label: ens2
+        slot: 0
+        type: physical
+
+links:
+  - id: l0
+    n1: n0
+    n2: n1
+    i1: i0
+    i2: i1
+    conditioning: {}
+    label: external-port<->n9k-fabric-Ethernet1/1
+  - id: l1
+    n1: n1
+    n2: n2
+    i1: i2
+    i2: i0
+    conditioning: {}
+    label: n9k-fabric-Ethernet1/2<->jump-1-ens2
+  - id: l2
+    n1: n1
+    n2: n3
+    i1: i3
+    i2: i0
+    conditioning: {}
+    label: n9k-fabric-Ethernet1/3<->k8s-cp-ens2
+  - id: l3
+    n1: n1
+    n2: n4
+    i1: i4
+    i2: i0
+    conditioning: {}
+    label: n9k-fabric-Ethernet1/4<->k8s-w1-ens2
+  - id: l4
+    n1: n1
+    n2: n5
+    i1: i5
+    i2: i0
+    conditioning: {}
+    label: n9k-fabric-Ethernet1/5<->k8s-w2-ens2
+  - id: l5
+    n1: n1
+    n2: n6
+    i1: i6
+    i2: i0
+    conditioning: {}
+    label: n9k-fabric-Ethernet1/6<->postgres-1-ens2
+
+lab:
+  description: >-
+    One K3s cluster behind a Nexus 9000v segmentation point. Workers and Cilium LoadBalancer IPs live on 198.18.1.0/24 while the
+    control plane and PostgreSQL node live on protected VLANs. Cilium uses VXLAN tunnel mode and L2 announcements for public service VIPs.
+  notes: >-
+    Start external and n9k-fabric first, then start jump-1 and the Ubuntu workload nodes. From jump-1, run
+    ansible-playbook ansible/nexus-segmented-k3s-cilium/site.yml after the repository is available. The Nexus ACL permits return traffic
+    for outbound package and image pulls but blocks new external-connector sessions into the management, control-plane, and database VLANs.
+    DNS uses upstream resolvers directly; no lab DNS cache is deployed.
+  title: 'Nexus Segmented K3s Cilium Lab'
+  version: 0.1.0
