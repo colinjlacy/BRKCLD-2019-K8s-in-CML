@@ -18,8 +18,8 @@ nodes:
     parameters: {}
     ram: null
     tags: []
-    x: -420
-    y: -120
+    x: -400
+    y: -80
     interfaces:
       - id: i0
         label: port
@@ -164,7 +164,7 @@ nodes:
     parameters: {}
     ram: 8192
     tags: []
-    x: -180
+    x: -160
     y: -120
     interfaces:
       - id: i0
@@ -172,35 +172,27 @@ nodes:
         type: physical
       - id: i1
         label: Ethernet1/1
-        slot: 0
         type: physical
       - id: i2
         label: Ethernet1/2
-        slot: 1
         type: physical
       - id: i3
         label: Ethernet1/3
-        slot: 2
         type: physical
       - id: i4
         label: Ethernet1/4
-        slot: 3
         type: physical
       - id: i5
         label: Ethernet1/5
-        slot: 4
         type: physical
       - id: i6
         label: Ethernet1/6
-        slot: 5
         type: physical
       - id: i7
         label: Ethernet1/7
-        slot: 6
         type: physical
       - id: i8
         label: Ethernet1/8
-        slot: 7
         type: physical
   - boot_disk_size: null
     configuration:
@@ -210,6 +202,10 @@ nodes:
           system_info:
             default_user:
               name: cisco
+          password: cisco
+          ssh_pwauth: true
+          chpasswd:
+            expire: false
           hostname: jump-1
           manage_etc_hosts: false
           apt:
@@ -269,8 +265,8 @@ nodes:
     parameters: {}
     ram: 4096
     tags: []
-    x: 120
-    y: -260
+    x: -400
+    y: -160
     interfaces:
       - id: i0
         label: ens2
@@ -284,6 +280,10 @@ nodes:
           system_info:
             default_user:
               name: cisco
+          password: cisco
+          ssh_pwauth: true
+          chpasswd:
+            expire: false
           hostname: k8s-cp
           manage_etc_hosts: false
           apt:
@@ -343,8 +343,8 @@ nodes:
     parameters: {}
     ram: 8192
     tags: []
-    x: 120
-    y: -80
+    x: -160
+    y: -320
     interfaces:
       - id: i0
         label: ens2
@@ -358,6 +358,10 @@ nodes:
           system_info:
             default_user:
               name: cisco
+          password: cisco
+          ssh_pwauth: true
+          chpasswd:
+            expire: false
           hostname: k8s-w1
           manage_etc_hosts: false
           apt:
@@ -417,8 +421,8 @@ nodes:
     parameters: {}
     ram: 8192
     tags: []
-    x: 120
-    y: 100
+    x: 80
+    y: -160
     interfaces:
       - id: i0
         label: ens2
@@ -432,6 +436,10 @@ nodes:
           system_info:
             default_user:
               name: cisco
+          password: cisco
+          ssh_pwauth: true
+          chpasswd:
+            expire: false
           hostname: k8s-w2
           manage_etc_hosts: false
           apt:
@@ -491,8 +499,8 @@ nodes:
     parameters: {}
     ram: 8192
     tags: []
-    x: 120
-    y: 260
+    x: 80
+    y: -80
     interfaces:
       - id: i0
         label: ens2
@@ -506,6 +514,10 @@ nodes:
           system_info:
             default_user:
               name: cisco
+          password: cisco
+          ssh_pwauth: true
+          chpasswd:
+            expire: false
           hostname: postgres-1
           manage_etc_hosts: false
           apt:
@@ -565,8 +577,8 @@ nodes:
     parameters: {}
     ram: 4096
     tags: []
-    x: 120
-    y: 420
+    x: -160
+    y: 80
     interfaces:
       - id: i0
         label: ens2
