@@ -237,6 +237,26 @@
         mode: "0755"
       become: true
 
+    - name: Download Cilium CLI tarball
+      ansible.builtin.get_url:
+        url: "https://github.com/cilium/cilium-cli/releases/download/{{ cilium_cli_version }}/cilium-linux-{{ kubectl_dl_arch }}.tar.gz"
+        dest: /tmp/cilium-cli.tar.gz
+        mode: "0644"
+
+    - name: Extract Cilium CLI
+      ansible.builtin.unarchive:
+        src: /tmp/cilium-cli.tar.gz
+        dest: /tmp
+        remote_src: true
+
+    - name: Install Cilium CLI
+      ansible.builtin.copy:
+        src: /tmp/cilium
+        dest: /usr/local/bin/cilium
+        mode: "0755"
+        remote_src: true
+      become: true
+
     - name: Ensure kubeconfig directory
       ansible.builtin.file:
         path: "{{ kube_dir }}"
@@ -268,6 +288,90 @@
         dest: "{{ kube_dir }}/k3s-b.yaml"
         content: "{{ kubeconfig_b.content | b64decode | replace('127.0.0.1', hostvars['k8s-b-cp'].k3s_cp_api_ip) }}"
         mode: "0600"
+
+- name: Configure mgmt and CSR routes for Cilium LoadBalancer pools
+  hosts: localhost
+  gather_facts: false
+  become: false
+  tasks:
+    - name: Persist mgmt routes to Cilium LoadBalancer pools
+      ansible.builtin.copy:
+        dest: /etc/netplan/60-cilium-lb-routes.yaml
+        mode: "0644"
+        content: |
+          network:
+            version: 2
+            ethernets:
+              ens2:
+                routes:
+                  - to: 10.110.0.0/24
+                    via: 198.18.1.2
+                  - to: 10.120.0.0/24
+                    via: 198.18.1.3
+      become: true
+      register: mgmt_lb_routes
+
+    - name: Apply mgmt LoadBalancer pool routes
+      ansible.builtin.command: netplan apply
+      become: true
+      changed_when: true
+      when: mgmt_lb_routes.changed
+
+    - name: Ensure current mgmt route to cluster A LoadBalancer pool
+      ansible.builtin.command: ip route replace 10.110.0.0/24 via 198.18.1.2
+      become: true
+      changed_when: true
+
+    - name: Ensure current mgmt route to cluster B LoadBalancer pool
+      ansible.builtin.command: ip route replace 10.120.0.0/24 via 198.18.1.3
+      become: true
+      changed_when: true
+
+    - name: Configure CSR-A route to cluster A LoadBalancer pool
+      ansible.builtin.shell: |
+        set -e
+        printf '%s\n' \
+          'configure terminal' \
+          'ip route 10.110.0.0 255.255.255.0 10.10.0.11' \
+          'end' \
+          'write memory' |
+          sshpass -p cisco ssh -tt \
+              -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              -o PreferredAuthentications=password \
+              -o NumberOfPasswordPrompts=0 \
+              cisco@198.18.1.2
+      args:
+        executable: /bin/bash
+      register: csr_a_lb_route
+      changed_when: csr_a_lb_route.rc == 0
+      failed_when: false
+
+    - name: Configure CSR-B route to cluster B LoadBalancer pool
+      ansible.builtin.shell: |
+        set -e
+        printf '%s\n' \
+          'configure terminal' \
+          'ip route 10.120.0.0 255.255.255.0 10.20.0.11' \
+          'end' \
+          'write memory' |
+          sshpass -p cisco ssh -tt \
+              -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              -o PreferredAuthentications=password \
+              -o NumberOfPasswordPrompts=0 \
+              cisco@198.18.1.3
+      args:
+        executable: /bin/bash
+      register: csr_b_lb_route
+      changed_when: csr_b_lb_route.rc == 0
+      failed_when: false
+
+    - name: Show CSR route configuration status
+      ansible.builtin.debug:
+        msg:
+          - "CSR-A route task rc={{ csr_a_lb_route.rc }}; if non-zero, configure manually: ip route 10.110.0.0 255.255.255.0 10.10.0.11"
+          - "CSR-B route task rc={{ csr_b_lb_route.rc }}; if non-zero, configure manually: ip route 10.120.0.0 255.255.255.0 10.20.0.11"
 
 - name: Install Helm on mgmt
   hosts: localhost

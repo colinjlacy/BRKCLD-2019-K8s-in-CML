@@ -79,21 +79,33 @@ nodes:
         content: |-
           hostname csr-a
           no ip domain lookup
+          ip domain-name lab.local
           ip cef
+          username cisco privilege 15 secret cisco
+          ip ssh version 2
           ip access-list extended NAT-A
            deny ip 10.10.0.0 0.0.0.255 198.18.1.0 0.0.0.255
            deny ip 10.10.0.0 0.0.0.255 10.20.0.0 0.0.0.255
+           deny ip 10.10.0.0 0.0.0.255 10.120.0.0 0.0.0.255
            deny ip 10.10.0.0 0.0.0.255 10.202.0.0 0.0.255.255
            deny ip 10.10.0.0 0.0.0.255 10.203.0.0 0.0.255.255
            deny ip 10.200.0.0 0.0.255.255 198.18.1.0 0.0.0.255
            deny ip 10.200.0.0 0.0.255.255 10.20.0.0 0.0.0.255
+           deny ip 10.200.0.0 0.0.255.255 10.120.0.0 0.0.0.255
            deny ip 10.200.0.0 0.0.255.255 10.202.0.0 0.0.255.255
            deny ip 10.200.0.0 0.0.255.255 10.203.0.0 0.0.255.255
            deny ip 10.201.0.0 0.0.255.255 198.18.1.0 0.0.0.255
            deny ip 10.201.0.0 0.0.255.255 10.20.0.0 0.0.0.255
+           deny ip 10.201.0.0 0.0.255.255 10.120.0.0 0.0.0.255
            deny ip 10.201.0.0 0.0.255.255 10.202.0.0 0.0.255.255
            deny ip 10.201.0.0 0.0.255.255 10.203.0.0 0.0.255.255
+           deny ip 10.110.0.0 0.0.0.255 198.18.1.0 0.0.0.255
+           deny ip 10.110.0.0 0.0.0.255 10.20.0.0 0.0.0.255
+           deny ip 10.110.0.0 0.0.0.255 10.120.0.0 0.0.0.255
+           deny ip 10.110.0.0 0.0.0.255 10.202.0.0 0.0.255.255
+           deny ip 10.110.0.0 0.0.0.255 10.203.0.0 0.0.255.255
            permit ip 10.10.0.0 0.0.0.255 any
+           permit ip 10.110.0.0 0.0.0.255 any
            permit ip 10.200.0.0 0.0.255.255 any
            permit ip 10.201.0.0 0.0.255.255 any
           interface GigabitEthernet1
@@ -113,6 +125,7 @@ nodes:
            description unused
            shutdown
           ip route 0.0.0.0 0.0.0.0 198.18.1.1
+          ip route 10.110.0.0 255.255.255.0 10.10.0.11
           ip nat inside source list NAT-A interface GigabitEthernet1 overload
           router bgp 65001
            bgp log-neighbor-changes
@@ -131,7 +144,7 @@ nodes:
           line con 0
            logging synchronous
           line vty 0 4
-           no login
+           login local
            transport input ssh
           end
     cpu_limit: null
@@ -173,21 +186,33 @@ nodes:
         content: |-
           hostname csr-b
           no ip domain lookup
+          ip domain-name lab.local
           ip cef
+          username cisco privilege 15 secret cisco
+          ip ssh version 2
           ip access-list extended NAT-B
            deny ip 10.20.0.0 0.0.0.255 198.18.1.0 0.0.0.255
            deny ip 10.20.0.0 0.0.0.255 10.10.0.0 0.0.0.255
+           deny ip 10.20.0.0 0.0.0.255 10.110.0.0 0.0.0.255
            deny ip 10.20.0.0 0.0.0.255 10.200.0.0 0.0.255.255
            deny ip 10.20.0.0 0.0.0.255 10.201.0.0 0.0.255.255
            deny ip 10.202.0.0 0.0.255.255 198.18.1.0 0.0.0.255
            deny ip 10.202.0.0 0.0.255.255 10.10.0.0 0.0.0.255
+           deny ip 10.202.0.0 0.0.255.255 10.110.0.0 0.0.0.255
            deny ip 10.202.0.0 0.0.255.255 10.200.0.0 0.0.255.255
            deny ip 10.202.0.0 0.0.255.255 10.201.0.0 0.0.255.255
            deny ip 10.203.0.0 0.0.255.255 198.18.1.0 0.0.0.255
            deny ip 10.203.0.0 0.0.255.255 10.10.0.0 0.0.0.255
+           deny ip 10.203.0.0 0.0.255.255 10.110.0.0 0.0.0.255
            deny ip 10.203.0.0 0.0.255.255 10.200.0.0 0.0.255.255
            deny ip 10.203.0.0 0.0.255.255 10.201.0.0 0.0.255.255
+           deny ip 10.120.0.0 0.0.0.255 198.18.1.0 0.0.0.255
+           deny ip 10.120.0.0 0.0.0.255 10.10.0.0 0.0.0.255
+           deny ip 10.120.0.0 0.0.0.255 10.110.0.0 0.0.0.255
+           deny ip 10.120.0.0 0.0.0.255 10.200.0.0 0.0.255.255
+           deny ip 10.120.0.0 0.0.0.255 10.201.0.0 0.0.255.255
            permit ip 10.20.0.0 0.0.0.255 any
+           permit ip 10.120.0.0 0.0.0.255 any
            permit ip 10.202.0.0 0.0.255.255 any
            permit ip 10.203.0.0 0.0.255.255 any
           interface GigabitEthernet1
@@ -207,6 +232,7 @@ nodes:
            description unused
            shutdown
           ip route 0.0.0.0 0.0.0.0 198.18.1.1
+          ip route 10.120.0.0 255.255.255.0 10.20.0.11
           ip nat inside source list NAT-B interface GigabitEthernet1 overload
           router bgp 65002
            bgp log-neighbor-changes
@@ -225,7 +251,7 @@ nodes:
           line con 0
            logging synchronous
           line vty 0 4
-           no login
+           login local
            transport input ssh
           end
     cpu_limit: null
@@ -306,6 +332,10 @@ nodes:
                         - to: 10.10.0.0/24
                           via: 198.18.1.2
                         - to: 10.20.0.0/24
+                          via: 198.18.1.3
+                        - to: 10.110.0.0/24
+                          via: 198.18.1.2
+                        - to: 10.120.0.0/24
                           via: 198.18.1.3
                         - to: 10.200.0.0/16
                           via: 198.18.1.2
