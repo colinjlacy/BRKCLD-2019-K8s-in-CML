@@ -293,6 +293,8 @@
           routingMode: tunnel
           tunnelProtocol: vxlan
           autoDirectNodeRoutes: false
+          l2announcements:
+            enabled: true
           bgpControlPlane:
             enabled: true
           k8sServiceHost: {{ hostvars['k8s-cp'].k3s_cp_api_ip }}
