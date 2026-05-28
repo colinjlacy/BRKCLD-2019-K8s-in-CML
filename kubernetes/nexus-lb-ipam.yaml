@@ -1,8 +1,0 @@
-apiVersion: cilium.io/v2alpha1
-kind: CiliumLoadBalancerIPPool
-metadata:
-  name: nexus-public-workload-pool
-spec:
-  blocks:
-    - start: 198.18.1.100
-      stop: 198.18.1.149
