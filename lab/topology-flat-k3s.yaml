@@ -2,6 +2,33 @@
 # Flat K3s lab: one external connector, one unmanaged switch, one mgmt host, and three K3s nodes.
 
 annotations: []
+smart_annotations:
+  - tag: k8s
+    is_on: true
+    padding: 35
+    label: k8s
+    tag_offset_x: 0
+    tag_offset_y: 0
+    tag_size: 14
+    group_distance: 400
+    thickness: 1
+    border_style: ''
+    fill_color: '#7BBE37'
+    border_color: '#00000080'
+    z_index: 1
+  - tag: mgmt
+    is_on: true
+    padding: 35
+    label: mgmt
+    tag_offset_x: 0
+    tag_offset_y: 0
+    tag_size: 14
+    group_distance: 400
+    thickness: 1
+    border_style: ''
+    fill_color: '#FF000080'
+    border_color: '#00000080'
+    z_index: 2
 nodes:
   - boot_disk_size: null
     configuration:
@@ -38,7 +65,7 @@ nodes:
     node_definition: unmanaged_switch
     parameters: {}
     ram: null
-    tags: []
+    tags: [k8s]
     x: 0
     y: -100
     interfaces:
@@ -217,9 +244,9 @@ nodes:
     node_definition: ubuntu
     parameters: {}
     ram: 8192
-    tags: []
+    tags: [mgmt]
     x: 0
-    y: 100
+    y: -240
     interfaces:
       - id: i0
         label: ens2
@@ -294,7 +321,7 @@ nodes:
     node_definition: ubuntu
     parameters: {}
     ram: 8192
-    tags: []
+    tags: [k8s]
     x: -220
     y: 260
     interfaces:
@@ -371,7 +398,7 @@ nodes:
     node_definition: ubuntu
     parameters: {}
     ram: 8192
-    tags: []
+    tags: [k8s]
     x: 0
     y: 260
     interfaces:
@@ -448,7 +475,7 @@ nodes:
     node_definition: ubuntu
     parameters: {}
     ram: 8192
-    tags: []
+    tags: [k8s]
     x: 220
     y: 260
     interfaces:

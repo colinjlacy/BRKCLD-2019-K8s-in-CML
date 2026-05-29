@@ -156,6 +156,26 @@
         enabled: true
         state: started
 
+- name: Pre-pull workload images on K3s nodes
+  hosts: k8s_nodes
+  become: true
+  vars:
+    k3s_prepull_images:
+      - docker.io/nginxinc/nginx-unprivileged:1.27-alpine
+      - docker.io/curlimages/curl:8.11.1
+  tasks:
+    - name: Pre-pull workload image with K3s containerd
+      ansible.builtin.command:
+        argv:
+          - /usr/local/bin/k3s
+          - ctr
+          - --namespace
+          - k8s.io
+          - images
+          - pull
+          - "{{ item }}"
+      loop: "{{ k3s_prepull_images }}"
+
 - name: Fetch kubeconfig and validate on mgmt
   hosts: localhost
   gather_facts: false
@@ -214,3 +234,71 @@
     - name: Show K3s nodes
       ansible.builtin.debug:
         var: k3s_nodes.stdout_lines
+
+- name: Apply curl target workload
+  hosts: localhost
+  gather_facts: false
+  become: false
+  vars:
+    kube_dir: /home/cisco/.kube
+    curl_target_manifest: /tmp/curl-target.yaml
+    curl_target_image: docker.io/nginxinc/nginx-unprivileged:1.27-alpine
+  tasks:
+    - name: Write curl target manifest
+      ansible.builtin.copy:
+        dest: "{{ curl_target_manifest }}"
+        mode: "0644"
+        content: |
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: curl-target
+          spec:
+            replicas: 2
+            selector:
+              matchLabels:
+                app: curl-target
+            template:
+              metadata:
+                labels:
+                  app: curl-target
+              spec:
+                securityContext:
+                  runAsNonRoot: true
+                  seccompProfile:
+                    type: RuntimeDefault
+                containers:
+                  - name: nginx
+                    image: {{ curl_target_image }}
+                    imagePullPolicy: IfNotPresent
+                    securityContext:
+                      allowPrivilegeEscalation: false
+                      capabilities:
+                        drop:
+                          - ALL
+                    ports:
+                      - containerPort: 8080
+          ---
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: curl-target
+          spec:
+            selector:
+              app: curl-target
+            ports:
+              - name: http
+                port: 80
+                targetPort: 8080
+
+    - name: Apply curl target manifest
+      ansible.builtin.command: kubectl apply -f "{{ curl_target_manifest }}"
+      environment:
+        KUBECONFIG: "{{ kube_dir }}/config"
+      register: curl_target_apply
+      changed_when: "'created' in curl_target_apply.stdout or 'configured' in curl_target_apply.stdout"
+
+    - name: Wait for curl target deployment
+      ansible.builtin.command: kubectl rollout status deployment/curl-target --timeout=300s
+      environment:
+        KUBECONFIG: "{{ kube_dir }}/config"

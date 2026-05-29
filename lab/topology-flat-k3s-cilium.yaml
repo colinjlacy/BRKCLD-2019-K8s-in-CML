@@ -2,6 +2,33 @@
 # Flat K3s + Cilium lab: one external connector, one unmanaged switch, one mgmt host, and three K3s nodes.
 
 annotations: []
+smart_annotations:
+  - tag: k8s
+    is_on: true
+    padding: 35
+    label: k8s
+    tag_offset_x: 0
+    tag_offset_y: 0
+    tag_size: 14
+    group_distance: 400
+    thickness: 1
+    border_style: ''
+    fill_color: '#1DADA8'
+    border_color: '#00000080'
+    z_index: 1
+  - tag: mgmt
+    is_on: true
+    padding: 35
+    label: mgmt
+    tag_offset_x: 0
+    tag_offset_y: 0
+    tag_size: 14
+    group_distance: 400
+    thickness: 1
+    border_style: ''
+    fill_color: '#FF000080'
+    border_color: '#00000080'
+    z_index: 2
 nodes:
   - boot_disk_size: null
     configuration:
