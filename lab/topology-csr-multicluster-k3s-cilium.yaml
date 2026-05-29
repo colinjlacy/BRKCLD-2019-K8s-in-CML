@@ -2,6 +2,59 @@
 # CSR multicluster K3s + Cilium lab: two CSR-backed site LANs and one mgmt host on the shared external segment.
 
 annotations: []
+smart_annotations:
+  - tag: bgp-connection
+    is_on: true
+    padding: 35
+    label: bgp-peering
+    tag_offset_x: 0
+    tag_offset_y: 0
+    tag_size: 14
+    group_distance: 400
+    thickness: 1
+    border_style: ''
+    fill_color: '#83FF8F80'
+    border_color: '#00000080'
+    z_index: 3
+  - tag: mgmt
+    is_on: true
+    padding: 35
+    label: mgmt
+    tag_offset_x: 0
+    tag_offset_y: 0
+    tag_size: 14
+    group_distance: 400
+    thickness: 1
+    border_style: ''
+    fill_color: '#FF000080'
+    border_color: '#00000080'
+    z_index: 3
+  - tag: site-a
+    is_on: true
+    padding: 54
+    label: site-a
+    tag_offset_x: 0
+    tag_offset_y: 0
+    tag_size: 14
+    group_distance: 400
+    thickness: 1
+    border_style: ''
+    fill_color: '#45DDFF'
+    border_color: '#00000080'
+    z_index: 1
+  - tag: site-b
+    is_on: true
+    padding: 54
+    label: site-b
+    tag_offset_x: 0
+    tag_offset_y: 0
+    tag_size: 14
+    group_distance: 400
+    thickness: 1
+    border_style: ''
+    fill_color: '#FF900080'
+    border_color: '#00000080'
+    z_index: 2
 nodes:
   - boot_disk_size: null
     configuration:
@@ -37,7 +90,7 @@ nodes:
     node_definition: unmanaged_switch
     parameters: {}
     ram: null
-    tags: []
+    tags: [bgp-connection]
     x: 0
     y: -120
     interfaces:
@@ -157,7 +210,7 @@ nodes:
     node_definition: csr1000v
     parameters: {}
     ram: 4096
-    tags: []
+    tags: [bgp-connection,site-a]
     x: -260
     y: 40
     interfaces:
@@ -264,7 +317,7 @@ nodes:
     node_definition: csr1000v
     parameters: {}
     ram: 4096
-    tags: []
+    tags: [bgp-connection,site-b]
     x: 260
     y: 40
     interfaces:
@@ -450,7 +503,7 @@ nodes:
     node_definition: ubuntu
     parameters: {}
     ram: 8192
-    tags: []
+    tags: [mgmt]
     x: 0
     y: 40
     interfaces:
@@ -470,7 +523,7 @@ nodes:
     node_definition: unmanaged_switch
     parameters: {}
     ram: null
-    tags: []
+    tags: [site-a]
     x: -260
     y: 220
     interfaces:
@@ -518,7 +571,7 @@ nodes:
     node_definition: unmanaged_switch
     parameters: {}
     ram: null
-    tags: []
+    tags: [site-b]
     x: 260
     y: 220
     interfaces:
@@ -627,7 +680,7 @@ nodes:
     node_definition: ubuntu
     parameters: {}
     ram: 8192
-    tags: []
+    tags: [site-a]
     x: -400
     y: 360
     interfaces:
@@ -708,7 +761,7 @@ nodes:
     node_definition: ubuntu
     parameters: {}
     ram: 8192
-    tags: []
+    tags: [site-a]
     x: -260
     y: 360
     interfaces:
@@ -789,7 +842,7 @@ nodes:
     node_definition: ubuntu
     parameters: {}
     ram: 8192
-    tags: []
+    tags: [site-a]
     x: -120
     y: 360
     interfaces:
@@ -870,7 +923,7 @@ nodes:
     node_definition: ubuntu
     parameters: {}
     ram: 8192
-    tags: []
+    tags: [site-b]
     x: 120
     y: 360
     interfaces:
@@ -951,7 +1004,7 @@ nodes:
     node_definition: ubuntu
     parameters: {}
     ram: 8192
-    tags: []
+    tags: [site-b]
     x: 260
     y: 360
     interfaces:
@@ -1032,7 +1085,7 @@ nodes:
     node_definition: ubuntu
     parameters: {}
     ram: 8192
-    tags: []
+    tags: [site-b]
     x: 400
     y: 360
     interfaces:

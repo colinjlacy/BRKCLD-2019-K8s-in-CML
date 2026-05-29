@@ -427,6 +427,8 @@
   hosts: localhost
   gather_facts: false
   become: false
+  vars:
+    cilium_chart_archive: "/tmp/cilium-{{ cilium_helm_chart_version }}.tgz"
   tasks:
     - name: Add and update Cilium Helm repo
       ansible.builtin.shell: |
@@ -435,12 +437,29 @@
         helm repo update
       changed_when: true
 
+    - name: Pull Cilium Helm chart archive
+      ansible.builtin.command:
+        argv:
+          - helm
+          - pull
+          - cilium/cilium
+          - --version
+          - "{{ cilium_helm_chart_version }}"
+          - --destination
+          - /tmp
+        creates: "{{ cilium_chart_archive }}"
+      register: cilium_chart_pull
+      until: cilium_chart_pull.rc == 0
+      retries: 6
+      delay: 10
+
 - name: Install Cilium and BGP resources
   hosts: k8s_control
   gather_facts: false
   become: false
   vars:
     kube_cfg: "/home/cisco/.kube/{{ 'k3s-a.yaml' if inventory_hostname == 'k8s-a-cp' else 'k3s-b.yaml' }}"
+    cilium_chart_archive: "/tmp/cilium-{{ cilium_helm_chart_version }}.tgz"
     cilium_values_file: "/tmp/cilium-values-{{ inventory_hostname }}.yaml"
     cilium_bgp_resources_file: "/tmp/cilium-bgp-{{ inventory_hostname }}.yaml"
   tasks:
@@ -479,8 +498,7 @@
     - name: Render Cilium chart and collect exact Cilium image references
       ansible.builtin.shell: |
         set -euo pipefail
-        helm template cilium cilium/cilium \
-          --version "{{ cilium_helm_chart_version }}" \
+        helm template cilium "{{ cilium_chart_archive }}" \
           --namespace kube-system \
           --values "{{ cilium_values_file }}" |
           awk '/image:/ { gsub(/"/, "", $2); print $2 }' |
@@ -526,9 +544,7 @@
           - upgrade
           - --install
           - cilium
-          - cilium/cilium
-          - --version
-          - "{{ cilium_helm_chart_version }}"
+          - "{{ cilium_chart_archive }}"
           - --namespace
           - kube-system
           - --create-namespace
