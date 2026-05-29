@@ -249,6 +249,22 @@
         dest: "{{ curl_target_manifest }}"
         mode: "0644"
         content: |
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: curl-target-nginx
+          data:
+            default.conf: |
+              server {
+                listen 8080;
+                server_name _;
+
+                location / {
+                  default_type text/plain;
+                  return 200 "curl-target\n";
+                }
+              }
+          ---
           apiVersion: apps/v1
           kind: Deployment
           metadata:
@@ -278,6 +294,15 @@
                           - ALL
                     ports:
                       - containerPort: 8080
+                    volumeMounts:
+                      - name: nginx-config
+                        mountPath: /etc/nginx/conf.d/default.conf
+                        subPath: default.conf
+                        readOnly: true
+                volumes:
+                  - name: nginx-config
+                    configMap:
+                      name: curl-target-nginx
           ---
           apiVersion: v1
           kind: Service
