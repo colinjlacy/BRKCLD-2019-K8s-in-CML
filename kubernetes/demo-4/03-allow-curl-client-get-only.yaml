@@ -1,0 +1,20 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-curl-client-get-only
+spec:
+  endpointSelector:
+    matchLabels:
+      app: curl-target
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            io.cilium.k8s.policy.serviceaccount: curl-client
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+          rules:
+            http:
+              - method: GET
+                path: ".*"

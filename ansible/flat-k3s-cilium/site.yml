@@ -267,6 +267,10 @@
     kube_cfg: /home/cisco/.kube/config
     cilium_values_file: /tmp/cilium-values.yaml
     cilium_bgp_resources_file: /tmp/cilium-bgp-control-plane.yaml
+    curl_target_manifest: /tmp/curl-target.yaml
+    workload_prepull_images:
+      - docker.io/nginxinc/nginx-unprivileged:1.27-alpine
+      - docker.io/curlimages/curl:8.11.1
   tasks:
     - name: Add and update Cilium Helm repo
       ansible.builtin.shell: |
@@ -307,6 +311,34 @@
               enabled: true
               service:
                 type: LoadBalancer
+
+    - name: Render Cilium chart and collect exact image references
+      ansible.builtin.shell: |
+        set -euo pipefail
+        helm template cilium cilium/cilium \
+          --version "{{ cilium_helm_chart_version }}" \
+          --namespace kube-system \
+          --values "{{ cilium_values_file }}" |
+          awk '/image:/ { gsub(/"/, "", $2); if ($2 != "") print $2 }' |
+          sort -u
+      args:
+        executable: /bin/bash
+      register: cilium_prepull_images
+      changed_when: false
+
+    - name: Pre-pull Cilium and workload images on K3s nodes
+      ansible.builtin.command:
+        argv:
+          - /usr/local/bin/k3s
+          - ctr
+          - --namespace
+          - k8s.io
+          - images
+          - pull
+          - "{{ item.1 }}"
+      become: true
+      delegate_to: "{{ item.0 }}"
+      loop: "{{ groups['k8s_nodes'] | product((cilium_prepull_images.stdout_lines + workload_prepull_images) | unique) | list }}"
 
     - name: Reconcile Cilium Helm release
       ansible.builtin.command:
@@ -414,6 +446,90 @@
     - name: Display Cilium BGP control plane resources
       ansible.builtin.debug:
         var: cilium_bgp_resources.stdout_lines
+
+    - name: Write curl target manifest
+      ansible.builtin.copy:
+        dest: "{{ curl_target_manifest }}"
+        mode: "0644"
+        content: |
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: curl-target-nginx
+          data:
+            default.conf: |
+              server {
+                listen 8080;
+                server_name _;
+
+                location / {
+                  default_type text/plain;
+                  return 200 "curl-target\n";
+                }
+              }
+          ---
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: curl-target
+          spec:
+            replicas: 2
+            selector:
+              matchLabels:
+                app: curl-target
+            template:
+              metadata:
+                labels:
+                  app: curl-target
+              spec:
+                securityContext:
+                  runAsNonRoot: true
+                  seccompProfile:
+                    type: RuntimeDefault
+                containers:
+                  - name: nginx
+                    image: docker.io/nginxinc/nginx-unprivileged:1.27-alpine
+                    imagePullPolicy: IfNotPresent
+                    securityContext:
+                      allowPrivilegeEscalation: false
+                      capabilities:
+                        drop:
+                          - ALL
+                    ports:
+                      - containerPort: 8080
+                    volumeMounts:
+                      - name: nginx-config
+                        mountPath: /etc/nginx/conf.d/default.conf
+                        subPath: default.conf
+                        readOnly: true
+                volumes:
+                  - name: nginx-config
+                    configMap:
+                      name: curl-target-nginx
+          ---
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: curl-target
+          spec:
+            selector:
+              app: curl-target
+            ports:
+              - name: http
+                port: 80
+                targetPort: 8080
+
+    - name: Apply curl target manifest
+      ansible.builtin.command: kubectl apply -f "{{ curl_target_manifest }}"
+      environment:
+        KUBECONFIG: "{{ kube_cfg }}"
+      register: curl_target_apply
+      changed_when: "'created' in curl_target_apply.stdout or 'configured' in curl_target_apply.stdout"
+
+    - name: Wait for curl target deployment
+      ansible.builtin.command: kubectl rollout status deployment/curl-target --timeout=300s
+      environment:
+        KUBECONFIG: "{{ kube_cfg }}"
 
     - name: Validate K3s nodes
       ansible.builtin.command: kubectl get nodes
